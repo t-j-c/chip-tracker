@@ -1,0 +1,27 @@
+# Node
+node_modules/
+npm-debug.log
+.npm
+
+# CDK
+lib/
+cdk.out/
+*.d.ts
+*.js
+*.js.map
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db

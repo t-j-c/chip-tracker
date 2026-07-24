@@ -1,0 +1,171 @@
+name: Infrastructure CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra-cd.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/**"
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: infra/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+        working-directory: infra
+      
+      - name: Build TypeScript
+        run: npm run build
+        working-directory: infra
+      
+      - name: Setup AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-1
+      
+      - name: Install CDK
+        run: npm install -g aws-cdk
+      
+      - name: CDK Synth
+        run: npm run synth
+        working-directory: infra
+      
+      - name: Upload CloudFormation template
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdk-synth
+          path: infra/cdk.out/
+
+  diff:
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: infra/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+        working-directory: infra
+      
+      - name: Build TypeScript
+        run: npm run build
+        working-directory: infra
+      
+      - name: Setup AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-1
+      
+      - name: Install CDK
+        run: npm install -g aws-cdk
+      
+      - name: CDK Diff
+        run: npm run diff -- --context env=prod
+        working-directory: infra
+        continue-on-error: true
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: infra/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+        working-directory: infra
+      
+      - name: Build TypeScript
+        run: npm run build
+        working-directory: infra
+      
+      - name: Setup AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-1
+      
+      - name: Install CDK
+        run: npm install -g aws-cdk
+      
+      - name: Bootstrap CDK
+        run: cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/us-east-1
+        working-directory: infra
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        continue-on-error: true
+      
+      - name: Deploy Infrastructure
+        run: npm run deploy:prod
+        working-directory: infra
+      
+      - name: Get Stack Outputs
+        id: outputs
+        run: |
+          STACK_NAME="chip-tracker-prod"
+          OUTPUTS=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs' --output json)
+          echo "OUTPUTS=$OUTPUTS" >> $GITHUB_OUTPUT
+      
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ Infrastructure deployment successful!\n\n**Outputs:**\n' + process.env.OUTPUTS
+            })
+        env:
+          OUTPUTS: ${{ steps.outputs.outputs.OUTPUTS }}
+
+  notify:
+    needs: [validate, deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Notify Deployment
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "✅ Infrastructure deployment successful"
+          else
+            echo "❌ Infrastructure deployment failed"
+            exit 1
+          fi

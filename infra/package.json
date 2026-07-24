@@ -1,0 +1,27 @@
+{
+  "name": "chip-tracker-infra",
+  "version": "1.0.0",
+  "description": "AWS CDK infrastructure for Chip Tracker application",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk",
+    "deploy": "cdk deploy --require-approval=never",
+    "deploy:prod": "cdk deploy --context env=prod --require-approval=never",
+    "synth": "cdk synth",
+    "diff": "cdk diff",
+    "destroy": "cdk destroy --force"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.150.0",
+    "constructs": "^10.0.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "aws-cdk": "^2.150.0"
+  }
+}
