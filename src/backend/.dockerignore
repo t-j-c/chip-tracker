@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+.github
+
+# Build outputs
+bin/
+obj/
+dist/
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.sln.iml
+.idea/
+
+# Node
+node_modules/
+npm-debug.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+docs/
+
+# Tests (can include if needed)
+# tests/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
