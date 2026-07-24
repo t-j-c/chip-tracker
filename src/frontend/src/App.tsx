@@ -1,13 +1,24 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import CreateRoomPage from './pages/CreateRoomPage';
+import GamePage from './pages/GamePage';
+import JoinRoomPage from './pages/JoinRoomPage';
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App() {
 
   return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<CreateRoomPage />} />
+        <Route path="/room/:roomCode" element={<GamePage />} />
+        <Route path="/join" element={<JoinRoomPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Router>
+  );
+}
+
+/*
+OLD TEMPLATE BELOW - DELETE LATER
     <>
       <section id="center">
         <div className="hero">
@@ -116,7 +127,4 @@ function App() {
       <div className="ticks"></div>
       <section id="spacer"></section>
     </>
-  )
-}
-
-export default App
+*/
