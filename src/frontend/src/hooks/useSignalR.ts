@@ -7,7 +7,7 @@ import { useGameStore } from '../stores/gameStore';
 export const useSignalR = () => {
   const connectionRef = useRef<signalR.HubConnection | null>(null);
   const startPromiseRef = useRef<Promise<void> | null>(null);
-  const { setGameState, setError, setUndoRequested, setConnected } = useGameStore();
+  const { setGameState, setError, setUndoRequested, setUndoDeclined, setConnected } = useGameStore();
 
   useEffect(() => {
     const connection = new signalR.HubConnectionBuilder()
@@ -24,6 +24,10 @@ export const useSignalR = () => {
 
     connection.on('UndoRequested', (requestingPlayerId: string) => {
       setUndoRequested(requestingPlayerId);
+    });
+
+    connection.on('UndoDeclined', (decliningPlayerId: string) => {
+      setUndoDeclined(decliningPlayerId);
     });
 
     connection.on('Error', (message: string) => {
@@ -48,7 +52,7 @@ export const useSignalR = () => {
     return () => {
       connection.stop();
     };
-  }, [setGameState, setError, setUndoRequested, setConnected]);
+  }, [setGameState, setError, setUndoRequested, setUndoDeclined, setConnected]);
 
   const joinRoom = useCallback(async (roomCode: string, playerId: string) => {
     if (!connectionRef.current) return;
@@ -67,6 +71,7 @@ export const useSignalR = () => {
     });
   }, [setError]);
 
+  /** Sends undo request to other player — does NOT modify state. */
   const requestUndo = useCallback((roomCode: string, playerId: string) => {
     if (!connectionRef.current) return;
     connectionRef.current.invoke('RequestUndo', roomCode, playerId).catch(err => {
@@ -75,11 +80,38 @@ export const useSignalR = () => {
     });
   }, [setError]);
 
+  /** Approves undo — actually applies the state revert. Called by the receiving player. */
+  const approveUndo = useCallback((roomCode: string, playerId: string) => {
+    if (!connectionRef.current) return;
+    connectionRef.current.invoke('ApproveUndo', roomCode, playerId).catch(err => {
+      console.error('Error approving undo:', err);
+      setError('Failed to approve undo');
+    });
+  }, [setError]);
+
+  /** Declines undo — notifies requester. No state change. */
+  const declineUndo = useCallback((roomCode: string, playerId: string) => {
+    if (!connectionRef.current) return;
+    connectionRef.current.invoke('DeclineUndo', roomCode, playerId).catch(err => {
+      console.error('Error declining undo:', err);
+    });
+  }, []);
+
+  /** Resolve showdown with a single winner. */
   const resolveShowdown = useCallback((roomCode: string, winnerPlayerId: string) => {
     if (!connectionRef.current) return;
-    connectionRef.current.invoke('ResolveShowdown', roomCode, winnerPlayerId).catch(err => {
+    connectionRef.current.invoke('ResolveShowdown', roomCode, winnerPlayerId, false).catch(err => {
       console.error('Error resolving showdown:', err);
       setError('Failed to resolve showdown');
+    });
+  }, [setError]);
+
+  /** Resolve showdown as a split pot. */
+  const resolveSplitPot = useCallback((roomCode: string) => {
+    if (!connectionRef.current) return;
+    connectionRef.current.invoke('ResolveShowdown', roomCode, '', true).catch(err => {
+      console.error('Error splitting pot:', err);
+      setError('Failed to split pot');
     });
   }, [setError]);
 
@@ -87,6 +119,9 @@ export const useSignalR = () => {
     joinRoom,
     submitAction,
     requestUndo,
+    approveUndo,
+    declineUndo,
     resolveShowdown,
+    resolveSplitPot,
   };
 };

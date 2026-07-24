@@ -20,4 +20,8 @@ public class CreateRoomResult
     public bool Success { get; set; }
     public string? RoomCode { get; set; }
     public string? Error { get; set; }
+    /// <summary>Player ID for the first player (room creator), so the frontend can identify them.</summary>
+    public string? Player1Id { get; set; }
+    /// <summary>Player ID for the second player.</summary>
+    public string? Player2Id { get; set; }
 }

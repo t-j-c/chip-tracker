@@ -13,6 +13,7 @@
     "@microsoft/signalr": "^10.0.0",
     "autoprefixer": "^10.5.4",
     "postcss": "^8.5.22",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",

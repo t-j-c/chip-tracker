@@ -8,12 +8,15 @@ export interface GameStore {
   isConnected: boolean;
   error: string | null;
   undoRequested: string | null;
+  /** Set when this player's undo request was declined by the other player. */
+  undoDeclined: string | null;
   setRoomCode: (code: string) => void;
   setPlayerId: (id: string) => void;
   setGameState: (state: GameState) => void;
   setConnected: (connected: boolean) => void;
   setError: (error: string | null) => void;
   setUndoRequested: (playerId: string | null) => void;
+  setUndoDeclined: (playerId: string | null) => void;
   reset: () => void;
 }
 
@@ -24,17 +27,20 @@ export const useGameStore = create<GameStore>((set) => ({
   isConnected: false,
   error: null,
   undoRequested: null,
+  undoDeclined: null,
   setRoomCode: (code) => set({ roomCode: code }),
   setPlayerId: (id) => set({ playerId: id }),
   setGameState: (state) => set({ gameState: state }),
   setConnected: (connected) => set({ isConnected: connected }),
   setError: (error) => set({ error }),
   setUndoRequested: (playerId) => set({ undoRequested: playerId }),
+  setUndoDeclined: (playerId) => set({ undoDeclined: playerId }),
   reset: () => set({
     roomCode: null,
     playerId: null,
     gameState: null,
     error: null,
     undoRequested: null,
+    undoDeclined: null,
   }),
 }));

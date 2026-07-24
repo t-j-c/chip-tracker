@@ -59,7 +59,9 @@ public class CreateRoomCommandHandler : IRequestHandler<CreateRoomCommand, Creat
         return new CreateRoomResult
         {
             Success = true,
-            RoomCode = roomCode
+            RoomCode = roomCode,
+            Player1Id = players[0].PlayerId,
+            Player2Id = players[1].PlayerId
         };
     }
 

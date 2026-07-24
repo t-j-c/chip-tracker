@@ -14,6 +14,11 @@ public class GameState
     public int BigBlind { get; set; }
     public int MinRaise { get; set; }
     public bool IsHandActive { get; set; }
+    /// <summary>
+    /// The player who acts first this betting street. Used to detect when a
+    /// check-around completes the street (all players have had a chance to act).
+    /// </summary>
+    public string? StreetFirstActorId { get; set; }
 
     /// <summary>
     /// Creates a deep copy of this game state.
@@ -31,7 +36,8 @@ public class GameState
             SmallBlind = SmallBlind,
             BigBlind = BigBlind,
             MinRaise = MinRaise,
-            IsHandActive = IsHandActive
+            IsHandActive = IsHandActive,
+            StreetFirstActorId = StreetFirstActorId
         };
     }
 }

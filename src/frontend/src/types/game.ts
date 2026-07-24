@@ -55,6 +55,8 @@ export interface CreateRoomRequest {
 export interface CreateRoomResponse {
   success: boolean;
   roomCode?: string;
+  player1Id?: string;
+  player2Id?: string;
   error?: string;
 }
 

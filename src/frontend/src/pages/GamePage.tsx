@@ -14,15 +14,19 @@ export default function GamePage() {
   const {
     playerId,
     gameState,
+    isConnected,
     undoRequested,
+    undoDeclined,
     error,
     setRoomCode,
     setPlayerId,
     setUndoRequested,
+    setUndoDeclined,
   } = useGameStore();
-  const { joinRoom, submitAction, requestUndo, resolveShowdown } = useSignalR();
+  const { joinRoom, submitAction, requestUndo, approveUndo, declineUndo, resolveShowdown, resolveSplitPot } = useSignalR();
   const [showUndoDialog, setShowUndoDialog] = useState(false);
   const [showShowdownDialog, setShowShowdownDialog] = useState(false);
+  const [undoPending, setUndoPending] = useState(false);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -41,14 +45,27 @@ export default function GamePage() {
   }, [roomCode, playerId, setRoomCode, setPlayerId, joinRoom]);
 
   useEffect(() => {
-    if (undoRequested && playerId) {
+    if (undoRequested && playerId && undoRequested !== playerId) {
+      // Only show dialog to the player who RECEIVED the request (not the requester)
       setShowUndoDialog(true);
     }
   }, [undoRequested, playerId]);
 
   useEffect(() => {
+    if (undoDeclined) {
+      // Requester gets notified their undo was declined
+      setUndoPending(false);
+      const timer = setTimeout(() => setUndoDeclined(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [undoDeclined, setUndoDeclined]);
+
+  useEffect(() => {
     if (gameState && gameState.phase === 'Showdown' && !gameState.isHandActive) {
       setShowShowdownDialog(true);
+    } else if (gameState && gameState.isHandActive) {
+      // New hand started — close showdown dialog
+      setShowShowdownDialog(false);
     }
   }, [gameState]);
 
@@ -76,13 +93,16 @@ export default function GamePage() {
 
   const handleApproveUndo = () => {
     if (playerId && roomCode) {
-      requestUndo(roomCode, playerId);
+      approveUndo(roomCode, playerId);
       setShowUndoDialog(false);
       setUndoRequested(null);
     }
   };
 
   const handleDeclineUndo = () => {
+    if (playerId && roomCode && undoRequested) {
+      declineUndo(roomCode, playerId);
+    }
     setShowUndoDialog(false);
     setUndoRequested(null);
   };
@@ -94,6 +114,20 @@ export default function GamePage() {
     }
   };
 
+  const handleSplitPot = () => {
+    if (roomCode) {
+      resolveSplitPot(roomCode);
+      setShowShowdownDialog(false);
+    }
+  };
+
+  const handleRequestUndo = () => {
+    if (playerId && roomCode) {
+      requestUndo(roomCode, playerId);
+      setUndoPending(true);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-900 to-green-800 p-4">
       <div className="max-w-6xl mx-auto">
@@ -101,6 +135,9 @@ export default function GamePage() {
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold text-white mb-2">Chip Tracker</h1>
           <p className="text-green-100">Room: {roomCode}</p>
+          {!isConnected && (
+            <p className="text-yellow-300 text-sm mt-1 animate-pulse">Reconnecting...</p>
+          )}
         </div>
 
         {/* Game Area */}
@@ -133,21 +170,19 @@ export default function GamePage() {
           </div>
         )}
 
-        {/* Undo Button */}
-        {isYourTurn && (
-          <div className="text-center mb-4">
-            <button
-              onClick={() => {
-                if (playerId && roomCode) {
-                  requestUndo(roomCode, playerId);
-                }
-              }}
-              className="bg-yellow-600 text-white font-bold py-2 px-4 rounded hover:bg-yellow-700"
-            >
-              Request Undo
-            </button>
-          </div>
-        )}
+        {/* Undo Button + status */}
+        <div className="text-center mb-4 space-y-2">
+          <button
+            onClick={handleRequestUndo}
+            disabled={undoPending}
+            className="bg-yellow-600 text-white font-bold py-2 px-4 rounded hover:bg-yellow-700 disabled:opacity-50"
+          >
+            {undoPending ? 'Undo Requested...' : 'Request Undo'}
+          </button>
+          {undoDeclined && (
+            <p className="text-red-400 text-sm">Undo was declined by other player.</p>
+          )}
+        </div>
       </div>
 
       {/* Dialogs */}
@@ -161,7 +196,13 @@ export default function GamePage() {
         />
       )}
 
-      {showShowdownDialog && <ShowdownDialog gameState={gameState} onSelectWinner={handleSelectWinner} />}
+      {showShowdownDialog && (
+        <ShowdownDialog
+          gameState={gameState}
+          onSelectWinner={handleSelectWinner}
+          onSplitPot={handleSplitPot}
+        />
+      )}
     </div>
   );
 }

@@ -37,7 +37,8 @@ public static class GameEngine
     }
 
     /// <summary>
-    /// Validates a fold action.
+    /// Validates a fold action. In heads-up, instantly awards pot to remaining player and
+    /// resets for the next hand.
     /// </summary>
     private static Result<GameState> ValidateFold(GameState state, Player requestingPlayer)
     {
@@ -45,12 +46,24 @@ public static class GameEngine
         var player = newState.Players.First(p => p.PlayerId == requestingPlayer.PlayerId);
         player.HasFolded = true;
 
-        newState = AdvanceTurn(newState);
+        var remaining = newState.Players.Where(p => !p.HasFolded).ToList();
+        if (remaining.Count == 1)
+        {
+            // Auto-award pot: winner gets chips, start next hand immediately
+            newState = ResolveShowdown(newState, remaining[0].PlayerId);
+        }
+        else
+        {
+            newState = AdvanceTurn(newState);
+        }
+
         return Result<GameState>.Success(newState);
     }
 
     /// <summary>
     /// Validates a check action (valid only if no outstanding bet).
+    /// The street ends only when the action has cycled all the way back to the
+    /// first actor, meaning every active player has had a chance to act.
     /// </summary>
     private static Result<GameState> ValidateCheck(GameState state, Player requestingPlayer)
     {
@@ -60,9 +73,9 @@ public static class GameEngine
         var newState = state.Clone();
         newState = AdvanceTurn(newState);
 
-        // Check if all remaining players have checked/called
-        var activePlayers = newState.Players.Where(p => !p.HasFolded && !p.IsAllIn).ToList();
-        if (activePlayers.All(p => p.CurrentBet == newState.CurrentBet))
+        // Street is complete when the turn returns to the player who opened this street,
+        // meaning every active player has had at least one chance to act.
+        if (newState.ActivePlayerTurnId == newState.StreetFirstActorId)
         {
             newState = AdvancePhase(newState);
         }
@@ -100,11 +113,15 @@ public static class GameEngine
 
         newState = AdvanceTurn(newState);
 
-        // Check if all remaining players have called
-        var activePlayers = newState.Players.Where(p => !p.HasFolded && !p.IsAllIn).ToList();
-        if (activePlayers.All(p => p.CurrentBet == newState.CurrentBet))
+        // Only advance phase if the hand is still active (not all-in runout)
+        // and all remaining active players have matched the current bet.
+        if (newState.IsHandActive)
         {
-            newState = AdvancePhase(newState);
+            var activePlayers = newState.Players.Where(p => !p.HasFolded && !p.IsAllIn).ToList();
+            if (activePlayers.All(p => p.CurrentBet == newState.CurrentBet))
+            {
+                newState = AdvancePhase(newState);
+            }
         }
 
         return Result<GameState>.Success(newState);
@@ -195,7 +212,8 @@ public static class GameEngine
     }
 
     /// <summary>
-    /// Advances turn to the next active player.
+    /// Advances turn to the next active (non-folded, non-all-in) player.
+    /// If no one can act (all remaining are all-in), marks hand inactive for showdown.
     /// </summary>
     public static GameState AdvanceTurn(GameState state)
     {
@@ -203,9 +221,9 @@ public static class GameEngine
             .Where(p => !p.HasFolded && !p.IsAllIn)
             .ToList();
 
-        if (activePlayers.Count <= 1)
+        if (activePlayers.Count == 0)
         {
-            // Hand over, move to showdown
+            // Every remaining player is all-in; run out the board
             state.IsHandActive = false;
             return state;
         }
@@ -213,7 +231,6 @@ public static class GameEngine
         var currentIndex = state.Players.FindIndex(p => p.PlayerId == state.ActivePlayerTurnId);
         var nextIndex = (currentIndex + 1) % state.Players.Count;
 
-        // Find next active player
         while (!activePlayers.Any(p => p.PlayerId == state.Players[nextIndex].PlayerId))
         {
             nextIndex = (nextIndex + 1) % state.Players.Count;
@@ -225,6 +242,7 @@ public static class GameEngine
 
     /// <summary>
     /// Advances to the next phase and resets bets.
+    /// Post-flop: in heads-up the non-dealer (BB) acts first. In multi-player, first active after dealer.
     /// </summary>
     public static GameState AdvancePhase(GameState state)
     {
@@ -237,6 +255,12 @@ public static class GameEngine
             _ => GamePhase.Showdown
         };
 
+        if (state.Phase == GamePhase.Showdown)
+        {
+            state.IsHandActive = false;
+            return state;
+        }
+
         // Reset bets for new phase
         state.CurrentBet = 0;
         state.MinRaise = state.BigBlind;
@@ -248,21 +272,32 @@ public static class GameEngine
             }
         }
 
-        // Set turn to first active player after dealer
-        var dealerIdx = state.DealerIndex;
-        var nextIdx = (dealerIdx + 1) % state.Players.Count;
-
-        while (state.Players[nextIdx].HasFolded || state.Players[nextIdx].IsAllIn)
+        // Post-flop first-to-act:
+        // Heads-up (2 players): non-dealer (BB) acts first.
+        // Multi-player: first active player after dealer, left-to-right.
+        int firstActIdx;
+        if (state.Players.Count == 2)
         {
-            nextIdx = (nextIdx + 1) % state.Players.Count;
+            // Non-dealer index
+            firstActIdx = (state.DealerIndex + 1) % 2;
+        }
+        else
+        {
+            firstActIdx = (state.DealerIndex + 1) % state.Players.Count;
+            while (state.Players[firstActIdx].HasFolded || state.Players[firstActIdx].IsAllIn)
+            {
+                firstActIdx = (firstActIdx + 1) % state.Players.Count;
+            }
         }
 
-        state.ActivePlayerTurnId = state.Players[nextIdx].PlayerId;
+        state.ActivePlayerTurnId = state.Players[firstActIdx].PlayerId;
+        state.StreetFirstActorId = state.ActivePlayerTurnId;
         return state;
     }
 
     /// <summary>
     /// Resolves showdown: awards pot to winner, rotates dealer, resets for new hand.
+    /// Heads-up rule: dealer = SB, other = BB. SB/dealer acts first pre-flop.
     /// </summary>
     public static GameState ResolveShowdown(GameState state, string winnerPlayerId)
     {
@@ -290,9 +325,73 @@ public static class GameEngine
             player.IsDealer = player.PlayerId == state.Players[state.DealerIndex].PlayerId;
         }
 
-        // Post blinds
-        var smallBlindIdx = (state.DealerIndex + 1) % state.Players.Count;
-        var bigBlindIdx = (smallBlindIdx + 1) % state.Players.Count;
+        PostBlinds(state);
+
+        return state;
+    }
+
+    /// <summary>
+    /// Resolves showdown with a split pot: splits evenly, remainder chip goes to first player by seat.
+    /// Rotates dealer and resets for new hand.
+    /// </summary>
+    public static GameState ResolveSplitPot(GameState state)
+    {
+        var activePlayers = state.Players.Where(p => !p.HasFolded).ToList();
+        if (activePlayers.Count == 0)
+            return state;
+
+        var share = state.Pot / activePlayers.Count;
+        var remainder = state.Pot % activePlayers.Count;
+
+        foreach (var p in activePlayers)
+            p.Stack += share;
+
+        // Remainder to lowest seat-index winner
+        activePlayers[0].Stack += remainder;
+
+        // Rotate dealer
+        state.DealerIndex = (state.DealerIndex + 1) % state.Players.Count;
+
+        // Reset for new hand
+        state.Pot = 0;
+        state.CurrentBet = 0;
+        state.MinRaise = state.BigBlind;
+        state.Phase = GamePhase.PreFlop;
+        state.IsHandActive = true;
+
+        foreach (var player in state.Players)
+        {
+            player.HasFolded = false;
+            player.IsAllIn = false;
+            player.CurrentBet = 0;
+            player.IsDealer = player.PlayerId == state.Players[state.DealerIndex].PlayerId;
+        }
+
+        PostBlinds(state);
+
+        return state;
+    }
+
+    /// <summary>
+    /// Posts blinds and sets first-to-act.
+    /// Heads-up (2 players): dealer = SB, acts first pre-flop.
+    /// Multi-player: standard left-of-dealer SB/BB; first-to-act = after BB.
+    /// </summary>
+    private static void PostBlinds(GameState state)
+    {
+        int smallBlindIdx, bigBlindIdx;
+
+        if (state.Players.Count == 2)
+        {
+            // Heads-up: dealer posts SB
+            smallBlindIdx = state.DealerIndex;
+            bigBlindIdx = (state.DealerIndex + 1) % 2;
+        }
+        else
+        {
+            smallBlindIdx = (state.DealerIndex + 1) % state.Players.Count;
+            bigBlindIdx = (smallBlindIdx + 1) % state.Players.Count;
+        }
 
         var sbPlayer = state.Players[smallBlindIdx];
         var bbPlayer = state.Players[bigBlindIdx];
@@ -306,13 +405,24 @@ public static class GameEngine
         state.Pot += state.BigBlind;
 
         state.CurrentBet = state.BigBlind;
-        state.ActivePlayerTurnId = state.Players[(bigBlindIdx + 1) % state.Players.Count].PlayerId;
 
-        return state;
+        // Pre-flop first-to-act:
+        // Heads-up: dealer/SB acts first. Multi-player: player after BB.
+        if (state.Players.Count == 2)
+        {
+            state.ActivePlayerTurnId = state.Players[smallBlindIdx].PlayerId;
+        }
+        else
+        {
+            state.ActivePlayerTurnId = state.Players[(bigBlindIdx + 1) % state.Players.Count].PlayerId;
+        }
+
+        state.StreetFirstActorId = state.ActivePlayerTurnId;
     }
 
     /// <summary>
     /// Creates initial game state for a new hand.
+    /// Heads-up (2 players): dealer = SB, acts first pre-flop.
     /// </summary>
     public static GameState CreateInitialState(List<Player> players, int smallBlind, int bigBlind, int dealerIndex)
     {
@@ -320,7 +430,7 @@ public static class GameEngine
         {
             Players = players.Select(p => p.Clone()).ToList(),
             Pot = 0,
-            CurrentBet = bigBlind,
+            CurrentBet = 0,
             Phase = GamePhase.PreFlop,
             DealerIndex = dealerIndex,
             SmallBlind = smallBlind,
@@ -329,26 +439,10 @@ public static class GameEngine
             IsHandActive = true
         };
 
-        // Post blinds
-        var smallBlindIdx = (dealerIndex + 1) % state.Players.Count;
-        var bigBlindIdx = (smallBlindIdx + 1) % state.Players.Count;
-
-        var sbPlayer = state.Players[smallBlindIdx];
-        var bbPlayer = state.Players[bigBlindIdx];
-
-        sbPlayer.CurrentBet = smallBlind;
-        sbPlayer.Stack -= smallBlind;
-        state.Pot += smallBlind;
-
-        bbPlayer.CurrentBet = bigBlind;
-        bbPlayer.Stack -= bigBlind;
-        state.Pot += bigBlind;
-
         // Set dealer chip
         state.Players[dealerIndex].IsDealer = true;
 
-        // First to act is after big blind
-        state.ActivePlayerTurnId = state.Players[(bigBlindIdx + 1) % state.Players.Count].PlayerId;
+        PostBlinds(state);
 
         return state;
     }
