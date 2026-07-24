@@ -36,6 +36,6 @@ public class ResolveShowdownCommandHandler : IRequestHandler<ResolveShowdownComm
         // Broadcast
         await _notifier.NotifyGameStateUpdated(request.RoomCode, room.CurrentState);
 
-        return new ResolveShowdownResult { Success = true };
+        return new ResolveShowdownResult { Success = true, GameState = room.CurrentState };
     }
 }

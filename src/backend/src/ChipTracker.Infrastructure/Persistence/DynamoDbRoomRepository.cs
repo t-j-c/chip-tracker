@@ -10,7 +10,7 @@ public class DynamoDbRoomRepository : IRoomRepository
 {
     private readonly IAmazonDynamoDB _dynamoDbClient;
     private readonly string _tableName;
-    private Table? _table;
+    private ITable? _table;
 
     public DynamoDbRoomRepository(IAmazonDynamoDB dynamoDbClient, string tableName = "ChipTracker_Rooms")
     {
@@ -18,7 +18,7 @@ public class DynamoDbRoomRepository : IRoomRepository
         _tableName = tableName;
     }
 
-    private async Task<Table> GetTableAsync()
+    private async Task<ITable> GetTableAsync()
     {
         if (_table == null)
         {

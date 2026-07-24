@@ -12,4 +12,5 @@ public class UndoActionResult
 {
     public bool Success { get; set; }
     public string? Error { get; set; }
+    public object? GameState { get; set; }
 }

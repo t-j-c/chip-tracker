@@ -32,6 +32,6 @@ public class UndoActionCommandHandler : IRequestHandler<UndoActionCommand, UndoA
         // Broadcast
         await _notifier.NotifyGameStateUpdated(request.RoomCode, room.CurrentState);
 
-        return new UndoActionResult { Success = true };
+        return new UndoActionResult { Success = true, GameState = room.CurrentState };
     }
 }
