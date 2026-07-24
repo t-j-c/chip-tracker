@@ -1,4 +1,5 @@
 using Amazon.DynamoDBv2;
+using Amazon.Runtime;
 using ChipTracker.Application.Interfaces;
 using ChipTracker.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
@@ -17,7 +18,9 @@ public static class DependencyInjection
         if (useLocal && !string.IsNullOrEmpty(serviceUrl))
         {
             services.AddSingleton<IAmazonDynamoDB>(new AmazonDynamoDBClient(
+                new BasicAWSCredentials("local", "local"),
                 new AmazonDynamoDBConfig { ServiceURL = serviceUrl }));
+            services.AddHostedService<DynamoDbTableInitializer>();
         }
         else
         {

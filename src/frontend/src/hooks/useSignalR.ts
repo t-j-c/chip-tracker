@@ -6,6 +6,7 @@ import { useGameStore } from '../stores/gameStore';
 
 export const useSignalR = () => {
   const connectionRef = useRef<signalR.HubConnection | null>(null);
+  const startPromiseRef = useRef<Promise<void> | null>(null);
   const { setGameState, setError, setUndoRequested, setConnected } = useGameStore();
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export const useSignalR = () => {
       setConnected(false);
     });
 
-    connection.start()
+    startPromiseRef.current = connection.start()
       .then(() => setConnected(true))
       .catch(err => {
         console.error('SignalR connection error:', err);
@@ -49,8 +50,9 @@ export const useSignalR = () => {
     };
   }, [setGameState, setError, setUndoRequested, setConnected]);
 
-  const joinRoom = useCallback((roomCode: string, playerId: string) => {
+  const joinRoom = useCallback(async (roomCode: string, playerId: string) => {
     if (!connectionRef.current) return;
+    await startPromiseRef.current;
     connectionRef.current.invoke('JoinRoom', roomCode, playerId).catch(err => {
       console.error('Error joining room:', err);
       setError('Failed to join room');
