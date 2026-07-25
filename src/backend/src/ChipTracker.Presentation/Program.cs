@@ -54,7 +54,7 @@ api.MapPost("/rooms", async (CreateRoomRequest req, IMediator mediator) =>
 {
     var command = new CreateRoomCommand
     {
-        Players = req.Players.Select(p => new CreatePlayerRequest { Name = p.Name, Stack = p.Stack }).ToList(),
+        StartingStack = req.StartingStack,
         SmallBlind = req.SmallBlind,
         BigBlind = req.BigBlind
     };
@@ -62,19 +62,41 @@ api.MapPost("/rooms", async (CreateRoomRequest req, IMediator mediator) =>
     var result = await mediator.Send(command);
 
     return result.Success
-        ? Results.Ok(new { success = true, roomCode = result.RoomCode, player1Id = result.Player1Id, player2Id = result.Player2Id, error = (string?)null })
-        : Results.BadRequest(new { success = false, roomCode = (string?)null, player1Id = (string?)null, player2Id = (string?)null, error = result.Error });
+        ? Results.Ok(new { success = true, roomCode = result.RoomCode, error = (string?)null })
+        : Results.BadRequest(new { success = false, roomCode = (string?)null, error = result.Error });
 });
 
-// Get room endpoint
+// Get room endpoint — returns both room info (lobby) and game state (in-game)
 api.MapGet("/rooms/{roomCode}", async (string roomCode, IMediator mediator) =>
 {
     var query = new GetRoomQuery { RoomCode = roomCode };
     var result = await mediator.Send(query);
 
     return result.Success
+        ? Results.Ok(new { success = true, roomInfo = result.RoomInfo, gameState = result.GameState, error = (string?)null })
+        : Results.NotFound(new { success = false, roomInfo = (object?)null, gameState = (object?)null, error = result.Error });
+});
+
+// Join room endpoint — player provides their name, gets back a playerId
+api.MapPost("/rooms/{roomCode}/join", async (string roomCode, JoinRoomRequest req, IMediator mediator) =>
+{
+    var command = new JoinRoomCommand { RoomCode = roomCode, PlayerName = req.Name };
+    var result = await mediator.Send(command);
+
+    return result.Success
+        ? Results.Ok(new { success = true, playerId = result.PlayerId, isCreator = result.IsCreator, error = (string?)null })
+        : Results.BadRequest(new { success = false, playerId = (string?)null, isCreator = false, error = result.Error });
+});
+
+// Start game endpoint — creator triggers game start
+api.MapPost("/rooms/{roomCode}/start", async (string roomCode, StartGameRequest req, IMediator mediator) =>
+{
+    var command = new StartGameCommand { RoomCode = roomCode, PlayerId = req.PlayerId };
+    var result = await mediator.Send(command);
+
+    return result.Success
         ? Results.Ok(new { success = true, gameState = result.GameState, error = (string?)null })
-        : Results.NotFound(new { success = false, gameState = (object?)null, error = result.Error });
+        : Results.BadRequest(new { success = false, gameState = (object?)null, error = result.Error });
 });
 
 app.Run();

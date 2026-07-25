@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createRoom, enterGameAsPlayer1, joinRoom, waitForGameReady } from '../helpers/game';
+import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import { call, check, fold, waitForMyTurn, waitForPhase } from '../helpers/actions';
 
 test.describe('Edge Cases', () => {
@@ -10,14 +10,14 @@ test.describe('Edge Cases', () => {
     const page2 = await ctx2.newPage();
 
     const roomCode = await createRoom(page1, {
-      player1Name: 'Alice',
-      player2Name: 'Bob',
-      stack: 1000,
+      startingStack: 1000,
       smallBlind: 10,
       bigBlind: 20,
     });
-    await enterGameAsPlayer1(page1, roomCode);
-    await joinRoom(page2, roomCode, 1);
+    await joinRoomAsCreator(page1, roomCode, 'Alice');
+    await joinRoomByName(page2, roomCode, 'Bob');
+    await expect(page1.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+    await startGame(page1, roomCode);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
 
@@ -31,7 +31,7 @@ test.describe('Edge Cases', () => {
     await waitForGameReady(page1);
 
     // Pot still visible after reconnect
-    await expect(page1.getByText('$30')).toBeVisible({ timeout: 20_000 });
+    await expect(page1.getByText('$30')).toBeVisible({ timeout: 5_000 });
 
     // Game continues: phase still PreFlop
     await expect(page1.locator('.text-yellow-300').first()).toHaveText('PreFlop');
@@ -47,14 +47,14 @@ test.describe('Edge Cases', () => {
     const page2 = await ctx2.newPage();
 
     const roomCode = await createRoom(page1, {
-      player1Name: 'Alice',
-      player2Name: 'Bob',
-      stack: 1000,
+      startingStack: 1000,
       smallBlind: 10,
       bigBlind: 20,
     });
-    await enterGameAsPlayer1(page1, roomCode);
-    await joinRoom(page2, roomCode, 1);
+    await joinRoomAsCreator(page1, roomCode, 'Alice');
+    await joinRoomByName(page2, roomCode, 'Bob');
+    await expect(page1.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+    await startGame(page1, roomCode);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
 
@@ -97,10 +97,7 @@ test.describe('Edge Cases', () => {
     // Create a room via REST
     const createResponse = await request.post('http://localhost:5000/api/rooms', {
       data: {
-        players: [
-          { name: 'TestP1', stack: 500 },
-          { name: 'TestP2', stack: 500 },
-        ],
+        startingStack: 500,
         smallBlind: 5,
         bigBlind: 10,
       },
@@ -110,6 +107,25 @@ test.describe('Edge Cases', () => {
     expect(createData.success).toBe(true);
     const roomCode: string = createData.roomCode;
     expect(roomCode).toMatch(/^[A-Z0-9]{6}$/);
+
+    // Join as two players
+    const join1 = await request.post(`http://localhost:5000/api/rooms/${roomCode}/join`, {
+      data: { name: 'TestP1' },
+    });
+    expect(join1.ok()).toBe(true);
+    const join1Data = await join1.json();
+    const creatorId: string = join1Data.playerId;
+
+    const join2 = await request.post(`http://localhost:5000/api/rooms/${roomCode}/join`, {
+      data: { name: 'TestP2' },
+    });
+    expect(join2.ok()).toBe(true);
+
+    // Start the game
+    const startResponse = await request.post(`http://localhost:5000/api/rooms/${roomCode}/start`, {
+      data: { playerId: creatorId },
+    });
+    expect(startResponse.ok()).toBe(true);
 
     // GET room state
     const getResponse = await request.get(`http://localhost:5000/api/rooms/${roomCode}`);
@@ -131,14 +147,14 @@ test.describe('Edge Cases', () => {
     const page2 = await ctx2.newPage();
 
     const roomCode = await createRoom(page1, {
-      player1Name: 'Alice',
-      player2Name: 'Bob',
-      stack: 1000,
+      startingStack: 1000,
       smallBlind: 10,
       bigBlind: 20,
     });
-    await enterGameAsPlayer1(page1, roomCode);
-    await joinRoom(page2, roomCode, 1);
+    await joinRoomAsCreator(page1, roomCode, 'Alice');
+    await joinRoomByName(page2, roomCode, 'Bob');
+    await expect(page1.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+    await startGame(page1, roomCode);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
 

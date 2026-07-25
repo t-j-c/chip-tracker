@@ -1,24 +1,23 @@
 import { test, expect } from '@playwright/test';
-import { createRoom, enterGameAsPlayer1, joinRoom, waitForGameReady } from '../helpers/game';
+import { createRoom, joinRoomByName, joinRoomAsCreator, createAndStartGame, waitForGameReady } from '../helpers/game';
 
 test.describe('Game Joining (Journey 1 - Connection)', () => {
-  test('TC06 - join via manual room code entry shows player selection', async ({ browser }) => {
+  test('TC06 - join via manual room code entry shows name input', async ({ browser }) => {
     const ctx1 = await browser.newContext();
     const ctx2 = await browser.newContext();
     const page1 = await ctx1.newPage();
     const page2 = await ctx2.newPage();
 
-    const roomCode = await createRoom(page1, { player1Name: 'Alice', player2Name: 'Bob' });
+    const roomCode = await createRoom(page1);
 
     // Player 2 goes to /join, enters code manually
     await page2.goto('/join');
     await page2.getByLabel('Room Code').fill(roomCode);
     await page2.getByRole('button', { name: 'Look Up' }).click();
 
-    // Player selection appears
-    await expect(page2.getByText('Select your player:')).toBeVisible();
-    await expect(page2.getByRole('button', { name: 'Alice' })).toBeVisible();
-    await expect(page2.getByRole('button', { name: 'Bob' })).toBeVisible();
+    // Name input appears (game not started yet)
+    await expect(page2.getByLabel('Your Name')).toBeVisible();
+    await expect(page2.getByRole('button', { name: 'Join Game' })).toBeVisible();
 
     await ctx1.close();
     await ctx2.close();
@@ -30,14 +29,13 @@ test.describe('Game Joining (Journey 1 - Connection)', () => {
     const page1 = await ctx1.newPage();
     const page2 = await ctx2.newPage();
 
-    const roomCode = await createRoom(page1, { player1Name: 'Alice', player2Name: 'Bob' });
+    const roomCode = await createRoom(page1);
 
-    // Simulate QR code scan: navigate directly to the deep link
+    // Simulate QR code scan
     await page2.goto(`/join?room=${roomCode}`);
 
-    // Auto-lookup fires on mount; player selection should appear without clicking Look Up
-    await expect(page2.getByText('Select your player:')).toBeVisible();
-    await expect(page2.getByRole('button', { name: 'Alice' })).toBeVisible();
+    // Auto-lookup fires; name input appears without clicking Look Up
+    await expect(page2.getByLabel('Your Name')).toBeVisible({ timeout: 5_000 });
 
     await ctx1.close();
     await ctx2.close();
@@ -49,29 +47,20 @@ test.describe('Game Joining (Journey 1 - Connection)', () => {
     await page.getByRole('button', { name: 'Look Up' }).click();
 
     await expect(page.getByText(/Room not found/i)).toBeVisible();
-    // No player buttons should appear
-    await expect(page.getByText('Select your player:')).not.toBeVisible();
+    await expect(page.getByLabel('Your Name')).not.toBeVisible();
   });
 
-  test('TC09 - full two-player connection: both enter game and see game state', async ({ browser }) => {
+  test('TC09 - full two-player lobby → start → both see game state', async ({ browser }) => {
     const ctx1 = await browser.newContext();
     const ctx2 = await browser.newContext();
     const page1 = await ctx1.newPage();
     const page2 = await ctx2.newPage();
 
-    const roomCode = await createRoom(page1, {
-      player1Name: 'Alice',
-      player2Name: 'Bob',
-      stack: 1000,
+    const roomCode = await createAndStartGame(page1, page2, 'Alice', 'Bob', {
+      startingStack: 1000,
       smallBlind: 10,
       bigBlind: 20,
     });
-
-    // Player 1 enters game
-    await enterGameAsPlayer1(page1, roomCode);
-
-    // Player 2 joins and selects themselves
-    await joinRoom(page2, roomCode, 1);
 
     // Both should be on the game page
     await waitForGameReady(page1);
@@ -81,7 +70,7 @@ test.describe('Game Joining (Journey 1 - Connection)', () => {
     await expect(page1.getByText(`Room: ${roomCode}`)).toBeVisible();
     await expect(page2.getByText(`Room: ${roomCode}`)).toBeVisible();
 
-    // Game state is synchronized: both see a pot with SB+BB = 30
+    // Game state is synchronized: SB+BB = 30
     await expect(page1.getByText('$30')).toBeVisible();
     await expect(page2.getByText('$30')).toBeVisible();
 
@@ -89,13 +78,13 @@ test.describe('Game Joining (Journey 1 - Connection)', () => {
     await ctx2.close();
   });
 
-  test('TC10 - player name is pre-filled from room code in URL', async ({ browser }) => {
+  test('TC10 - room code is pre-filled from URL query param', async ({ browser }) => {
     const ctx1 = await browser.newContext();
     const ctx2 = await browser.newContext();
     const page1 = await ctx1.newPage();
     const page2 = await ctx2.newPage();
 
-    const roomCode = await createRoom(page1, { player1Name: 'Charlie', player2Name: 'Diana' });
+    const roomCode = await createRoom(page1);
 
     await page2.goto(`/join?room=${roomCode}`);
 
@@ -104,5 +93,35 @@ test.describe('Game Joining (Journey 1 - Connection)', () => {
 
     await ctx1.close();
     await ctx2.close();
+  });
+
+  test('TC11 - only creator sees Start Game button', async ({ browser }) => {
+    const ctx1 = await browser.newContext();
+    const ctx2 = await browser.newContext();
+    const page1 = await ctx1.newPage();
+    const page2 = await ctx2.newPage();
+
+    const roomCode = await createRoom(page1);
+    await joinRoomAsCreator(page1, roomCode, 'Alice');
+    await joinRoomByName(page2, roomCode, 'Bob');
+
+    // Creator sees Start Game button
+    await expect(page1.getByRole('button', { name: 'Start Game' })).toBeVisible();
+
+    // Non-creator does not see Start Game button
+    await expect(page2.getByRole('button', { name: 'Start Game' })).not.toBeVisible();
+
+    await ctx1.close();
+    await ctx2.close();
+  });
+
+  test('TC12 - Start Game is disabled until 2+ players have joined', async ({ page }) => {
+    const roomCode = await createRoom(page);
+    await joinRoomAsCreator(page, roomCode, 'Alice');
+
+    // Only 1 player — Start Game should be disabled
+    const startBtn = page.getByRole('button', { name: 'Start Game' });
+    await expect(startBtn).toBeVisible();
+    await expect(startBtn).toBeDisabled();
   });
 });

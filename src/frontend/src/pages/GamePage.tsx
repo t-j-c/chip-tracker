@@ -20,6 +20,7 @@ export default function GamePage() {
     error,
     setRoomCode,
     setPlayerId,
+    setIsCreator,
     setUndoRequested,
     setUndoDeclined,
   } = useGameStore();
@@ -32,17 +33,18 @@ export default function GamePage() {
     if (!roomCode) return;
 
     if (!playerId) {
-      // Get stored playerId from session or ask player to select
       const storedPlayerId = sessionStorage.getItem(`playerId_${roomCode}`);
+      const storedIsCreator = sessionStorage.getItem(`isCreator_${roomCode}`) === 'true';
       if (storedPlayerId) {
         setPlayerId(storedPlayerId);
+        setIsCreator(storedIsCreator);
         joinRoom(roomCode, storedPlayerId);
       }
     } else {
       setRoomCode(roomCode);
       joinRoom(roomCode, playerId);
     }
-  }, [roomCode, playerId, setRoomCode, setPlayerId, joinRoom]);
+  }, [roomCode, playerId, setRoomCode, setPlayerId, setIsCreator, joinRoom]);
 
   useEffect(() => {
     if (undoRequested && playerId && undoRequested !== playerId) {
@@ -83,7 +85,9 @@ export default function GamePage() {
 
   const isYourTurn = playerId && gameState.activePlayerTurnId === playerId;
   const currentPlayer = gameState.players.find(p => p.playerId === playerId);
-  const otherPlayer = gameState.players.find(p => p.playerId !== playerId);
+  const otherPlayers = gameState.players.filter(p => p.playerId !== playerId);
+  // Keep backward compat: single "other player" for undo dialog name lookup
+  const otherPlayer = otherPlayers[0];
 
   const handleAction = (action: PokerAction, amount?: number) => {
     if (playerId && roomCode) {
@@ -141,21 +145,27 @@ export default function GamePage() {
         </div>
 
         {/* Game Area */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-          {/* Player 1 */}
-          <div className="flex justify-center">
-            {otherPlayer && <PlayerPanel player={otherPlayer} isActivePlayer={gameState.activePlayerTurnId === otherPlayer.playerId} />}
+        {/* Other players — responsive grid above */}
+        {otherPlayers.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-4 mb-4">
+            {otherPlayers.map(p => (
+              <PlayerPanel
+                key={p.playerId}
+                player={p}
+                isActivePlayer={gameState.activePlayerTurnId === p.playerId}
+              />
+            ))}
           </div>
+        )}
 
-          {/* Center Pot */}
-          <div className="flex justify-center">
-            <PotDisplay state={gameState} />
-          </div>
+        {/* Pot display — center */}
+        <div className="flex justify-center mb-4">
+          <PotDisplay state={gameState} />
+        </div>
 
-          {/* Player 2 (You) */}
-          <div className="flex justify-center">
-            {currentPlayer && <PlayerPanel player={currentPlayer} isActivePlayer={!!isYourTurn} />}
-          </div>
+        {/* Current player — bottom */}
+        <div className="flex justify-center mb-6">
+          {currentPlayer && <PlayerPanel player={currentPlayer} isActivePlayer={!!isYourTurn} />}
         </div>
 
         {/* Action Bar */}

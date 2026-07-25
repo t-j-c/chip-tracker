@@ -1,9 +1,16 @@
 import { create } from 'zustand';
 import type { GameState } from '../types/game';
 
+export interface LobbyPlayer {
+  playerId: string;
+  name: string;
+}
+
 export interface GameStore {
   roomCode: string | null;
   playerId: string | null;
+  isCreator: boolean;
+  lobbyPlayers: LobbyPlayer[];
   gameState: GameState | null;
   isConnected: boolean;
   error: string | null;
@@ -12,6 +19,9 @@ export interface GameStore {
   undoDeclined: string | null;
   setRoomCode: (code: string) => void;
   setPlayerId: (id: string) => void;
+  setIsCreator: (isCreator: boolean) => void;
+  setLobbyPlayers: (players: LobbyPlayer[]) => void;
+  addLobbyPlayer: (player: LobbyPlayer) => void;
   setGameState: (state: GameState) => void;
   setConnected: (connected: boolean) => void;
   setError: (error: string | null) => void;
@@ -23,6 +33,8 @@ export interface GameStore {
 export const useGameStore = create<GameStore>((set) => ({
   roomCode: null,
   playerId: null,
+  isCreator: false,
+  lobbyPlayers: [],
   gameState: null,
   isConnected: false,
   error: null,
@@ -30,6 +42,13 @@ export const useGameStore = create<GameStore>((set) => ({
   undoDeclined: null,
   setRoomCode: (code) => set({ roomCode: code }),
   setPlayerId: (id) => set({ playerId: id }),
+  setIsCreator: (isCreator) => set({ isCreator }),
+  setLobbyPlayers: (players) => set({ lobbyPlayers: players }),
+  addLobbyPlayer: (player) => set((state) => ({
+    lobbyPlayers: state.lobbyPlayers.some(p => p.playerId === player.playerId)
+      ? state.lobbyPlayers
+      : [...state.lobbyPlayers, player],
+  })),
   setGameState: (state) => set({ gameState: state }),
   setConnected: (connected) => set({ isConnected: connected }),
   setError: (error) => set({ error }),
@@ -38,6 +57,8 @@ export const useGameStore = create<GameStore>((set) => ({
   reset: () => set({
     roomCode: null,
     playerId: null,
+    isCreator: false,
+    lobbyPlayers: [],
     gameState: null,
     error: null,
     undoRequested: null,

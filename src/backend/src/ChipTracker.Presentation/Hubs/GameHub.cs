@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using MediatR;
 using ChipTracker.Application.Commands;
+using ChipTracker.Application.DTOs;
 using ChipTracker.Application.Queries;
 using ChipTracker.Domain.Enums;
 
@@ -12,6 +13,8 @@ public interface IGameClient
     Task UndoRequested(string requestingPlayerId);
     Task UndoDeclined(string decliningPlayerId);
     Task Error(string message);
+    Task PlayerJoined(PlayerDto player, int playerCount);
+    Task GameStarted(object gameState);
 }
 
 public class GameHub : Hub<IGameClient>

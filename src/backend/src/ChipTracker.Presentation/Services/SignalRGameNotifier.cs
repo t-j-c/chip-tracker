@@ -1,28 +1,43 @@
+using ChipTracker.Application.DTOs;
 using ChipTracker.Application.Interfaces;
 using ChipTracker.Domain.Entities;
+using ChipTracker.Presentation.Hubs;
+using Microsoft.AspNetCore.SignalR;
 
 namespace ChipTracker.Presentation.Services;
 
-/// <summary>
-/// Placeholder notifier - will be wired up with actual SignalR hub context in Program.cs
-/// </summary>
 public class SignalRGameNotifier : IGameNotifier
 {
+    private readonly IHubContext<GameHub, IGameClient> _hubContext;
+
+    public SignalRGameNotifier(IHubContext<GameHub, IGameClient> hubContext)
+    {
+        _hubContext = hubContext;
+    }
+
     public Task NotifyGameStateUpdated(string roomCode, GameState state)
     {
-        // TODO: Wire to actual SignalR hub
+        // GameHub broadcasts directly; this stub is kept for completeness
         return Task.CompletedTask;
     }
 
     public Task NotifyUndoRequested(string roomCode, string requestingPlayerId)
     {
-        // TODO: Wire to actual SignalR hub
         return Task.CompletedTask;
     }
 
     public Task NotifyError(string connectionId, string message)
     {
-        // TODO: Wire to actual SignalR hub
         return Task.CompletedTask;
+    }
+
+    public Task NotifyPlayerJoined(string roomCode, PlayerDto player, int playerCount)
+    {
+        return _hubContext.Clients.Group(roomCode).PlayerJoined(player, playerCount);
+    }
+
+    public Task NotifyGameStarted(string roomCode, GameStateDto state)
+    {
+        return _hubContext.Clients.Group(roomCode).GameStarted(state);
     }
 }

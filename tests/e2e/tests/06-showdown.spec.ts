@@ -1,5 +1,5 @@
 import { test, expect, Page, Browser } from '@playwright/test';
-import { createRoom, enterGameAsPlayer1, joinRoom, waitForGameReady } from '../helpers/game';
+import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import { call, check, waitForMyTurn, waitForPhase, waitForShowdown, selectShowdownWinner, splitPot } from '../helpers/actions';
 
 /** Play through all streets by checking to reach showdown. */
@@ -48,14 +48,14 @@ test.describe('Showdown (Journey 3)', () => {
     const page2 = await ctx2.newPage();
 
     const roomCode = await createRoom(page1, {
-      player1Name: 'Alice',
-      player2Name: 'Bob',
-      stack: 1000,
+      startingStack: 1000,
       smallBlind: 10,
       bigBlind: 20,
     });
-    await enterGameAsPlayer1(page1, roomCode);
-    await joinRoom(page2, roomCode, 1);
+    await joinRoomAsCreator(page1, roomCode, 'Alice');
+    await joinRoomByName(page2, roomCode, 'Bob');
+    await expect(page1.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+    await startGame(page1, roomCode);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
 
@@ -138,14 +138,14 @@ test.describe('Showdown (Journey 3)', () => {
     const page2 = await ctx2.newPage();
 
     const roomCode = await createRoom(page1, {
-      player1Name: 'Alice',
-      player2Name: 'Bob',
-      stack: 1000,
+      startingStack: 1000,
       smallBlind: 10,
       bigBlind: 20,
     });
-    await enterGameAsPlayer1(page1, roomCode);
-    await joinRoom(page2, roomCode, 1);
+    await joinRoomAsCreator(page1, roomCode, 'Alice');
+    await joinRoomByName(page2, roomCode, 'Bob');
+    await expect(page1.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+    await startGame(page1, roomCode);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
 

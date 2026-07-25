@@ -47,7 +47,7 @@ export interface ActionRequest {
 }
 
 export interface CreateRoomRequest {
-  players: { name: string; stack: number }[];
+  startingStack: number;
   smallBlind: number;
   bigBlind: number;
 }
@@ -55,13 +55,34 @@ export interface CreateRoomRequest {
 export interface CreateRoomResponse {
   success: boolean;
   roomCode?: string;
-  player1Id?: string;
-  player2Id?: string;
   error?: string;
+}
+
+export interface JoinRoomRequest {
+  name: string;
+}
+
+export interface JoinRoomResponse {
+  success: boolean;
+  playerId?: string;
+  isCreator?: boolean;
+  error?: string;
+}
+
+export interface RoomInfo {
+  roomCode: string;
+  players: { playerId: string; name: string; stack: number }[];
+  startingStack: number;
+  smallBlind: number;
+  bigBlind: number;
+  maxPlayers: number;
+  isGameStarted: boolean;
+  creatorPlayerId: string | null;
 }
 
 export interface GetRoomResponse {
   success: boolean;
+  roomInfo?: RoomInfo;
   gameState?: GameState;
   error?: string;
 }

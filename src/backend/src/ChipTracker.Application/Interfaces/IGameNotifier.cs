@@ -1,3 +1,4 @@
+using ChipTracker.Application.DTOs;
 using ChipTracker.Domain.Entities;
 
 namespace ChipTracker.Application.Interfaces;
@@ -21,4 +22,14 @@ public interface IGameNotifier
     /// Sends error message to a specific connection.
     /// </summary>
     Task NotifyError(string connectionId, string message);
+
+    /// <summary>
+    /// Notifies all players in the lobby that a new player has joined.
+    /// </summary>
+    Task NotifyPlayerJoined(string roomCode, PlayerDto player, int playerCount);
+
+    /// <summary>
+    /// Notifies all players that the game has started with the initial state.
+    /// </summary>
+    Task NotifyGameStarted(string roomCode, GameStateDto state);
 }

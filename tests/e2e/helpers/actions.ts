@@ -50,22 +50,22 @@ export async function allIn(page: Page): Promise<void> {
 
 /** Wait until it is this player's turn (action bar visible). */
 export async function waitForMyTurn(page: Page): Promise<void> {
-  await expect(page.getByText('Your Turn - Choose Action')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText('Your Turn - Choose Action')).toBeVisible({ timeout: 5_000 });
 }
 
 /** Wait until it is NOT this player's turn (waiting state visible). */
 export async function waitForOpponentTurn(page: Page): Promise<void> {
-  await expect(page.getByText('Waiting for your turn...')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText('Waiting for your turn...')).toBeVisible({ timeout: 5_000 });
 }
 
 /** Wait until the phase displayed matches expectedPhase. */
 export async function waitForPhase(page: Page, expectedPhase: string): Promise<void> {
-  await expect(page.locator('.text-yellow-300').first()).toHaveText(expectedPhase, { timeout: 20_000 });
+  await expect(page.locator('.text-yellow-300').first()).toHaveText(expectedPhase, { timeout: 5_000 });
 }
 
 /** Wait for the showdown dialog to appear. */
 export async function waitForShowdown(page: Page): Promise<void> {
-  await expect(page.getByRole('heading', { name: 'Showdown' })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('heading', { name: 'Showdown' })).toBeVisible({ timeout: 5_000 });
   await expect(page.getByText('Who won the hand?')).toBeVisible();
 }
 

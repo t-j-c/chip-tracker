@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createRoom, enterGameAsPlayer1, joinRoom, waitForGameReady } from '../helpers/game';
+import { createAndStartGame, waitForGameReady } from '../helpers/game';
 
 test.describe('Pre-flop State (Journey 2)', () => {
   test.beforeEach(async () => {
@@ -13,15 +13,11 @@ test.describe('Pre-flop State (Journey 2)', () => {
     const page1 = await ctx1.newPage();
     const page2 = await ctx2.newPage();
 
-    const roomCode = await createRoom(page1, {
-      player1Name: 'Alice',
-      player2Name: 'Bob',
-      stack: 1000,
+    const roomCode = await createAndStartGame(page1, page2, 'Alice', 'Bob', {
+      startingStack: 1000,
       smallBlind: 10,
       bigBlind: 20,
     });
-    await enterGameAsPlayer1(page1, roomCode);
-    await joinRoom(page2, roomCode, 1);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
 
@@ -50,15 +46,11 @@ test.describe('Pre-flop State (Journey 2)', () => {
     const page1 = await ctx1.newPage();
     const page2 = await ctx2.newPage();
 
-    const roomCode = await createRoom(page1, {
-      player1Name: 'Alice',
-      player2Name: 'Bob',
-      stack: 1000,
+    await createAndStartGame(page1, page2, 'Alice', 'Bob', {
+      startingStack: 1000,
       smallBlind: 10,
       bigBlind: 20,
     });
-    await enterGameAsPlayer1(page1, roomCode);
-    await joinRoom(page2, roomCode, 1);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
 
@@ -84,15 +76,11 @@ test.describe('Pre-flop State (Journey 2)', () => {
     const page1 = await ctx1.newPage();
     const page2 = await ctx2.newPage();
 
-    const roomCode = await createRoom(page1, {
-      player1Name: 'Alice',
-      player2Name: 'Bob',
-      stack: 1000,
+    await createAndStartGame(page1, page2, 'Alice', 'Bob', {
+      startingStack: 1000,
       smallBlind: 10,
       bigBlind: 20,
     });
-    await enterGameAsPlayer1(page1, roomCode);
-    await joinRoom(page2, roomCode, 1);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
 
@@ -120,15 +108,11 @@ test.describe('Pre-flop State (Journey 2)', () => {
     const page1 = await ctx1.newPage();
     const page2 = await ctx2.newPage();
 
-    const roomCode = await createRoom(page1, {
-      player1Name: 'Alice',
-      player2Name: 'Bob',
-      stack: 1000,
+    await createAndStartGame(page1, page2, 'Alice', 'Bob', {
+      startingStack: 1000,
       smallBlind: 10,
       bigBlind: 20,
     });
-    await enterGameAsPlayer1(page1, roomCode);
-    await joinRoom(page2, roomCode, 1);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
 

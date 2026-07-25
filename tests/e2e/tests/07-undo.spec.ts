@@ -1,5 +1,5 @@
 import { test, expect, Browser } from '@playwright/test';
-import { createRoom, enterGameAsPlayer1, joinRoom, waitForGameReady } from '../helpers/game';
+import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import { call, waitForMyTurn, requestUndo, approveUndo, declineUndo } from '../helpers/actions';
 
 test.describe('Undo Flow (Journey: Undo)', () => {
@@ -10,14 +10,14 @@ test.describe('Undo Flow (Journey: Undo)', () => {
     const page2 = await ctx2.newPage();
 
     const roomCode = await createRoom(page1, {
-      player1Name: 'Alice',
-      player2Name: 'Bob',
-      stack: 1000,
+      startingStack: 1000,
       smallBlind: 10,
       bigBlind: 20,
     });
-    await enterGameAsPlayer1(page1, roomCode);
-    await joinRoom(page2, roomCode, 1);
+    await joinRoomAsCreator(page1, roomCode, 'Alice');
+    await joinRoomByName(page2, roomCode, 'Bob');
+    await expect(page1.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+    await startGame(page1, roomCode);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
 
@@ -102,7 +102,7 @@ test.describe('Undo Flow (Journey: Undo)', () => {
     await declineUndo(opponentPage);
 
     // Undo dialog disappears on opponent
-    await expect(opponentPage.getByText('Undo Request')).not.toBeVisible({ timeout: 10_000 });
+    await expect(opponentPage.getByText('Undo Request')).not.toBeVisible({ timeout: 5_000 });
 
     // State unchanged: pot still 40
     await expect(page1.getByText('$40')).toBeVisible();
@@ -111,7 +111,7 @@ test.describe('Undo Flow (Journey: Undo)', () => {
     await waitForMyTurn(opponentPage);
 
     // Requesting player sees "Undo was declined" message
-    await expect(actingPage.getByText(/Undo was declined/i)).toBeVisible({ timeout: 10_000 });
+    await expect(actingPage.getByText(/Undo was declined/i)).toBeVisible({ timeout: 5_000 });
 
     await ctx1.close();
     await ctx2.close();

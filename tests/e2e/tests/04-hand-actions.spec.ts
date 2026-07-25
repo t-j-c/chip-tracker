@@ -1,5 +1,5 @@
 import { test, expect, Browser } from '@playwright/test';
-import { createRoom, enterGameAsPlayer1, joinRoom, waitForGameReady } from '../helpers/game';
+import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import {
   fold,
   call,
@@ -20,14 +20,14 @@ async function setupGame(browser: Browser, opts?: { stack?: number; smallBlind?:
   const page2 = await ctx2.newPage();
 
   const roomCode = await createRoom(page1, {
-    player1Name: 'Alice',
-    player2Name: 'Bob',
-    stack: opts?.stack ?? 1000,
+    startingStack: opts?.stack ?? 1000,
     smallBlind: opts?.smallBlind ?? 10,
     bigBlind: opts?.bigBlind ?? 20,
   });
-  await enterGameAsPlayer1(page1, roomCode);
-  await joinRoom(page2, roomCode, 1);
+  await joinRoomAsCreator(page1, roomCode, 'Alice');
+  await joinRoomByName(page2, roomCode, 'Bob');
+  await expect(page1.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+  await startGame(page1, roomCode);
   await waitForGameReady(page1);
   await waitForGameReady(page2);
 

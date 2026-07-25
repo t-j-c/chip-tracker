@@ -3,11 +3,12 @@ import * as signalR from '@microsoft/signalr';
 import type { GameState } from '../types/game';
 import { PokerAction } from '../types/game';
 import { useGameStore } from '../stores/gameStore';
+import type { LobbyPlayer } from '../stores/gameStore';
 
 export const useSignalR = () => {
   const connectionRef = useRef<signalR.HubConnection | null>(null);
   const startPromiseRef = useRef<Promise<void> | null>(null);
-  const { setGameState, setError, setUndoRequested, setUndoDeclined, setConnected } = useGameStore();
+  const { setGameState, setError, setUndoRequested, setUndoDeclined, setConnected, addLobbyPlayer } = useGameStore();
 
   useEffect(() => {
     const connection = new signalR.HubConnectionBuilder()
@@ -34,6 +35,14 @@ export const useSignalR = () => {
       setError(message);
     });
 
+    connection.on('PlayerJoined', (player: LobbyPlayer) => {
+      addLobbyPlayer(player);
+    });
+
+    connection.on('GameStarted', (state: GameState) => {
+      setGameState(state);
+    });
+
     connection.onreconnected(() => {
       setConnected(true);
     });
@@ -52,7 +61,7 @@ export const useSignalR = () => {
     return () => {
       connection.stop();
     };
-  }, [setGameState, setError, setUndoRequested, setUndoDeclined, setConnected]);
+  }, [setGameState, setError, setUndoRequested, setUndoDeclined, setConnected, addLobbyPlayer]);
 
   const joinRoom = useCallback(async (roomCode: string, playerId: string) => {
     if (!connectionRef.current) return;
