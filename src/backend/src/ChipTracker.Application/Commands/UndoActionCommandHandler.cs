@@ -1,3 +1,4 @@
+using ChipTracker.Application.DTOs;
 using ChipTracker.Application.Interfaces;
 using MediatR;
 
@@ -32,6 +33,6 @@ public class UndoActionCommandHandler : IRequestHandler<UndoActionCommand, UndoA
         // Broadcast
         await _notifier.NotifyGameStateUpdated(request.RoomCode, room.CurrentState);
 
-        return new UndoActionResult { Success = true, GameState = room.CurrentState };
+        return new UndoActionResult { Success = true, GameState = GameStateDto.MapFromDomain(room.CurrentState) };
     }
 }

@@ -65,9 +65,10 @@ export default function JoinRoomPage() {
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Room Code</label>
+            <label htmlFor="room-code" className="block text-sm font-semibold text-gray-700 mb-2">Room Code</label>
             <div className="flex gap-2">
               <input
+                id="room-code"
                 type="text"
                 value={roomCode}
                 onChange={e => { setRoomCode(e.target.value.toUpperCase()); setPlayers([]); }}

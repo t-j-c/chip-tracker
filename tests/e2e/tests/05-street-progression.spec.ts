@@ -40,7 +40,7 @@ test.describe('Street Progression (Journey 2)', () => {
     const inactivePage = activePage === page1 ? page2 : page1;
     await call(activePage);
     await waitForMyTurn(inactivePage);
-    await check(inactivePage);
+    await inactivePage.getByRole('button', { name: 'Check' }).click();
     await waitForPhase(page1, 'Flop');
 
     return { page1, page2, ctx1, ctx2, roomCode };

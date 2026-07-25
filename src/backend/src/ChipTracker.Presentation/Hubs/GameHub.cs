@@ -67,18 +67,24 @@ public class GameHub : Hub<IGameClient>
         }
     }
 
-    public async Task SubmitAction(string roomCode, string playerId, int action, int? amount = null)
+    public async Task SubmitAction(string roomCode, string playerId, string action, int? amount = null)
     {
         try
         {
             _logger.LogInformation("Player {PlayerId} in room {RoomCode} submitting action {Action} amount {Amount}",
                 playerId, roomCode, action, amount);
 
+            if (!Enum.TryParse<PokerAction>(action, ignoreCase: true, out var pokerAction))
+            {
+                await Clients.Client(Context.ConnectionId).Error($"Unknown action: {action}");
+                return;
+            }
+
             var command = new ProcessActionCommand
             {
                 RoomCode = roomCode,
                 PlayerId = playerId,
-                Action = (PokerAction)action,
+                Action = pokerAction,
                 Amount = amount
             };
 

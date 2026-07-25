@@ -60,6 +60,7 @@ export default function CreateRoomPage() {
     setRoomCode(createdRoomCode);
     if (createdPlayerId) {
       setPlayerId(createdPlayerId);
+      sessionStorage.setItem(`playerId_${createdRoomCode}`, createdPlayerId);
     }
     navigate(`/room/${createdRoomCode}`);
   };
@@ -102,8 +103,9 @@ export default function CreateRoomPage() {
 
         <form onSubmit={handleCreateRoom} className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700">Player 1 Name</label>
+            <label htmlFor="player1Name" className="block text-sm font-semibold text-gray-700">Player 1 Name</label>
             <input
+              id="player1Name"
               type="text"
               value={player1Name}
               onChange={(e) => setPlayer1Name(e.target.value)}
@@ -112,8 +114,9 @@ export default function CreateRoomPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700">Player 2 Name</label>
+            <label htmlFor="player2Name" className="block text-sm font-semibold text-gray-700">Player 2 Name</label>
             <input
+              id="player2Name"
               type="text"
               value={player2Name}
               onChange={(e) => setPlayer2Name(e.target.value)}
@@ -122,8 +125,9 @@ export default function CreateRoomPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700">Starting Stack</label>
+            <label htmlFor="stack" className="block text-sm font-semibold text-gray-700">Starting Stack</label>
             <input
+              id="stack"
               type="number"
               value={stack}
               onChange={(e) => setStack(parseInt(e.target.value))}
@@ -133,8 +137,9 @@ export default function CreateRoomPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700">Small Blind</label>
+              <label htmlFor="smallBlind" className="block text-sm font-semibold text-gray-700">Small Blind</label>
               <input
+                id="smallBlind"
                 type="number"
                 value={smallBlind}
                 onChange={(e) => setSmallBlind(parseInt(e.target.value))}
@@ -142,8 +147,9 @@ export default function CreateRoomPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700">Big Blind</label>
+              <label htmlFor="bigBlind" className="block text-sm font-semibold text-gray-700">Big Blind</label>
               <input
+                id="bigBlind"
                 type="number"
                 value={bigBlind}
                 onChange={(e) => setBigBlind(parseInt(e.target.value))}

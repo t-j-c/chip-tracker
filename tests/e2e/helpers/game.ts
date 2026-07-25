@@ -75,7 +75,7 @@ export async function enterGameAsPlayer1(page: Page, roomCode: string): Promise<
 export async function waitForGameReady(page: Page): Promise<void> {
   await expect(page.getByText('Chip Tracker').first()).toBeVisible();
   // "Connecting to game..." loading state should be gone
-  await expect(page.getByText('Connecting to game...')).not.toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Connecting to game...')).not.toBeVisible({ timeout: 5_000 });
 }
 
 /**

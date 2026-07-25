@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ChipTracker.Application;
 using ChipTracker.Application.Commands;
 using ChipTracker.Application.Interfaces;
@@ -14,7 +15,15 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddScoped<IGameNotifier, SignalRGameNotifier>();
-builder.Services.AddSignalR();
+builder.Services.AddSignalR()
+    .AddJsonProtocol(options =>
+    {
+        options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -53,8 +62,8 @@ api.MapPost("/rooms", async (CreateRoomRequest req, IMediator mediator) =>
     var result = await mediator.Send(command);
 
     return result.Success
-        ? Results.Ok(new { success = true, roomCode = result.RoomCode, error = (string?)null })
-        : Results.BadRequest(new { success = false, roomCode = (string?)null, error = result.Error });
+        ? Results.Ok(new { success = true, roomCode = result.RoomCode, player1Id = result.Player1Id, player2Id = result.Player2Id, error = (string?)null })
+        : Results.BadRequest(new { success = false, roomCode = (string?)null, player1Id = (string?)null, player2Id = (string?)null, error = result.Error });
 });
 
 // Get room endpoint
@@ -64,8 +73,8 @@ api.MapGet("/rooms/{roomCode}", async (string roomCode, IMediator mediator) =>
     var result = await mediator.Send(query);
 
     return result.Success
-        ? Results.Ok(result.GameState)
-        : Results.NotFound(new { error = result.Error });
+        ? Results.Ok(new { success = true, gameState = result.GameState, error = (string?)null })
+        : Results.NotFound(new { success = false, gameState = (object?)null, error = result.Error });
 });
 
 app.Run();

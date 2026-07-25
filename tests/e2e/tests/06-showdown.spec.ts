@@ -13,7 +13,10 @@ async function playToShowdown(page1: Page, page2: Page) {
   const preflop = await getActive();
   await call(preflop.active);
   await waitForMyTurn(preflop.inactive);
-  await check(preflop.inactive);
+  // BB may remain the active player into the next street (heads-up flop),
+  // so use a raw click here instead of the `check()` helper which asserts
+  // the action bar disappears.
+  await preflop.inactive.getByRole('button', { name: 'Check' }).click();
 
   // Flop: both check
   await waitForPhase(page1, 'Flop');

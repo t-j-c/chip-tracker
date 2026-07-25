@@ -118,7 +118,10 @@ public static class GameEngine
         if (newState.IsHandActive)
         {
             var activePlayers = newState.Players.Where(p => !p.HasFolded && !p.IsAllIn).ToList();
-            if (activePlayers.All(p => p.CurrentBet == newState.CurrentBet))
+            // Phase advances only when all bets are matched AND the action has cycled back
+            // to the street's first actor, ensuring every player has had a voluntary turn.
+            if (activePlayers.All(p => p.CurrentBet == newState.CurrentBet) &&
+                newState.ActivePlayerTurnId == newState.StreetFirstActorId)
             {
                 newState = AdvancePhase(newState);
             }

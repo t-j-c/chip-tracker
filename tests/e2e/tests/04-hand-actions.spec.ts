@@ -79,13 +79,15 @@ test.describe('Hand Actions (Journey 2)', () => {
   test('TC17 - check post-flop: no chips moved, turn passes', async ({ browser }) => {
     const { activePage, inactivePage, ctx1, ctx2 } = await setupGame(browser);
 
-    // Get to flop: SB calls, BB checks
+    // Get to flop: SB calls, BB checks their live pre-flop option
     await call(activePage);
     await waitForMyTurn(inactivePage);
-    await check(inactivePage);
+    // Use click directly — BB remains first actor on Flop, so turn doesn't leave inactivePage
+    await inactivePage.getByRole('button', { name: 'Check' }).click();
 
     // Should now be on the Flop
     await waitForPhase(activePage, 'Flop');
+    await waitForPhase(inactivePage, 'Flop');
 
     // On flop: one player is first to act. Find who.
     const p1ActiveOnFlop = await activePage.getByText('Your Turn - Choose Action').isVisible();
@@ -110,11 +112,13 @@ test.describe('Hand Actions (Journey 2)', () => {
   test('TC18 - bet post-flop: pot increases, opponent must respond', async ({ browser }) => {
     const { activePage, inactivePage, ctx1, ctx2 } = await setupGame(browser);
 
-    // Get to flop: SB calls, BB checks
+    // Get to flop: SB calls, BB checks their live pre-flop option
     await call(activePage);
     await waitForMyTurn(inactivePage);
-    await check(inactivePage);
+    // Use click directly — BB remains first actor on Flop, so turn doesn't leave inactivePage
+    await inactivePage.getByRole('button', { name: 'Check' }).click();
     await waitForPhase(activePage, 'Flop');
+    await waitForPhase(inactivePage, 'Flop');
 
     // Find flop active player
     const p1ActiveOnFlop = await activePage.getByText('Your Turn - Choose Action').isVisible();
@@ -132,7 +136,7 @@ test.describe('Hand Actions (Journey 2)', () => {
     await waitForMyTurn(flopInactivePage);
     await expect(flopInactivePage.getByRole('button', { name: /^Call/ })).toBeVisible();
     await expect(flopInactivePage.getByRole('button', { name: 'Fold' })).toBeVisible();
-    await expect(flopInactivePage.getByRole('button', { name: 'Raise' })).toBeVisible();
+    await expect(flopInactivePage.getByRole('button', { name: 'Raise', exact: true })).toBeVisible();
     await expect(flopInactivePage.getByRole('button', { name: 'Check' })).not.toBeVisible();
 
     // Pot increased by 50
@@ -157,7 +161,7 @@ test.describe('Hand Actions (Journey 2)', () => {
     await waitForMyTurn(activePage);
     await expect(activePage.getByRole('button', { name: /^Call/ })).toBeVisible();
     await expect(activePage.getByRole('button', { name: 'Fold' })).toBeVisible();
-    await expect(activePage.getByRole('button', { name: 'Raise' })).toBeVisible();
+    await expect(activePage.getByRole('button', { name: 'Raise', exact: true })).toBeVisible();
 
     await ctx1.close();
     await ctx2.close();

@@ -104,7 +104,7 @@ test.describe('Pre-flop State (Journey 2)', () => {
     // Call button shows the amount to call
     await expect(activePage.getByRole('button', { name: /^Call/ })).toBeVisible();
     // Raise button visible
-    await expect(activePage.getByRole('button', { name: 'Raise' })).toBeVisible();
+    await expect(activePage.getByRole('button', { name: 'Raise', exact: true })).toBeVisible();
     // Check should NOT be visible (facing a bet pre-flop)
     await expect(activePage.getByRole('button', { name: 'Check' })).not.toBeVisible();
     // All-In always available

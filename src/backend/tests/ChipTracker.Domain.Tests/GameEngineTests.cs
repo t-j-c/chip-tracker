@@ -136,9 +136,14 @@ public class GameEngineTests
     [Fact]
     public void ValidateCheck_NoBet_Succeeds()
     {
-        // p1 calls pre-flop → bets equalized → phase advances to Flop with p2 first
+        // p1 (SB) calls pre-flop → BB (p2) gets live option, still PreFlop
         var state = InitialState(dealerIndex: 0);
         state = GameEngine.ValidateAction(state, Action("p1", PokerAction.Call)).Value!;
+        state.Phase.Should().Be(GamePhase.PreFlop, "BB still has their live option");
+        state.ActivePlayerTurnId.Should().Be("p2");
+
+        // p2 checks their option → phase advances to Flop with p2 first
+        state = GameEngine.ValidateAction(state, Action("p2", PokerAction.Check)).Value!;
         state.Phase.Should().Be(GamePhase.Flop);
         state.ActivePlayerTurnId.Should().Be("p2");
 
@@ -198,9 +203,10 @@ public class GameEngineTests
     [Fact]
     public void ValidateBet_BelowMinimum_ReturnsFailure()
     {
-        // p1 calls pre-flop → Flop (p2 first). Min bet = BigBlind = 20.
+        // p1 calls pre-flop → p2 checks option → Flop (p2 first). Min bet = BigBlind = 20.
         var state = InitialState(dealerIndex: 0, bigBlind: 20);
         state = GameEngine.ValidateAction(state, Action("p1", PokerAction.Call)).Value!;
+        state = GameEngine.ValidateAction(state, Action("p2", PokerAction.Check)).Value!;
         state.Phase.Should().Be(GamePhase.Flop);
         state.ActivePlayerTurnId.Should().Be("p2");
 
@@ -226,9 +232,10 @@ public class GameEngineTests
     [Fact]
     public void ValidateBet_Valid_UpdatesStateCorrectly()
     {
-        // p1 calls pre-flop (pot=40 total) → Flop, p2 first
+        // p1 calls pre-flop (pot=40 total) → p2 checks option → Flop, p2 first
         var state = InitialState(dealerIndex: 0);
         state = GameEngine.ValidateAction(state, Action("p1", PokerAction.Call)).Value!;
+        state = GameEngine.ValidateAction(state, Action("p2", PokerAction.Check)).Value!;
         state.Phase.Should().Be(GamePhase.Flop);
 
         var result = GameEngine.ValidateAction(state, Action("p2", PokerAction.Bet, 40));
@@ -364,10 +371,13 @@ public class GameEngineTests
     [Fact]
     public void AdvancePhase_PreFlopToFlop_ResetsBeтs()
     {
-        // p1 calls → bets equalize → Flop starts automatically. p2 checks on Flop.
+        // p1 calls → BB (p2) gets live option and checks → Flop starts.
         var state = InitialState(dealerIndex: 0);
         state = GameEngine.ValidateAction(state, Action("p1", PokerAction.Call)).Value!;
+        state.Phase.Should().Be(GamePhase.PreFlop, "BB still has their live option");
+        state = GameEngine.ValidateAction(state, Action("p2", PokerAction.Check)).Value!;
         state.Phase.Should().Be(GamePhase.Flop);
+        state.CurrentBet.Should().Be(0, "bets reset on phase advance");
 
         // p2 checks on Flop (p1 still needs to act, so no phase advance yet)
         var result = GameEngine.ValidateAction(state, Action("p2", PokerAction.Check));
@@ -380,9 +390,10 @@ public class GameEngineTests
     [Fact]
     public void AdvancePhase_PostFlop_NonDealerActsFirst()
     {
-        // p1 calls pre-flop → bets equalize → Flop starts with p2 (non-dealer/BB) first
+        // p1 calls → p2 checks option → Flop starts with p2 (non-dealer/BB) first
         var state = InitialState(dealerIndex: 0);
         state = GameEngine.ValidateAction(state, Action("p1", PokerAction.Call)).Value!;
+        state = GameEngine.ValidateAction(state, Action("p2", PokerAction.Check)).Value!;
 
         state.Phase.Should().Be(GamePhase.Flop);
         state.ActivePlayerTurnId.Should().Be("p2", "non-dealer acts first post-flop in heads-up");
@@ -393,8 +404,9 @@ public class GameEngineTests
     {
         var state = InitialState(dealerIndex: 0);
 
-        // Pre-flop: p1 (SB/dealer) calls → both bets equalized → Flop
+        // Pre-flop: p1 (SB/dealer) calls → BB (p2) gets live option, checks → Flop
         state = GameEngine.ValidateAction(state, Action("p1", PokerAction.Call)).Value!;
+        state = GameEngine.ValidateAction(state, Action("p2", PokerAction.Check)).Value!;
         state.Phase.Should().Be(GamePhase.Flop);
 
         // Flop: p2 first (non-dealer). p2 checks, p1 checks → Turn

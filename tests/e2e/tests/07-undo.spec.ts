@@ -74,7 +74,7 @@ test.describe('Undo Flow (Journey: Undo)', () => {
     await approveUndo(opponentPage);
 
     // State reverts: pot back to 30, actingPage has turn back
-    await expect(page1.getByText('$30')).toBeVisible({ timeout: 15_000 });
+    await expect(page1.getByText('$30')).toBeVisible({ timeout: 5_000 });
     await waitForMyTurn(actingPage);
 
     await ctx1.close();

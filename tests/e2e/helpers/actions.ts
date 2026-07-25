@@ -4,20 +4,20 @@ import { Page, expect } from '@playwright/test';
 export async function fold(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Fold' }).click();
   // After folding the action bar should disappear (no longer your turn)
-  await expect(page.getByText('Waiting for your turn...')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Waiting for your turn...')).toBeVisible({ timeout: 5_000 });
 }
 
 /** Click the Check button and wait for state update. */
 export async function check(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Check' }).click();
-  await expect(page.getByText('Your Turn - Choose Action')).not.toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Your Turn - Choose Action')).not.toBeVisible({ timeout: 5_000 });
 }
 
 /** Click the Call button and wait for turn to pass. */
 export async function call(page: Page): Promise<void> {
   const callBtn = page.getByRole('button', { name: /^Call/ });
   await callBtn.click();
-  await expect(page.getByText('Your Turn - Choose Action')).not.toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Your Turn - Choose Action')).not.toBeVisible({ timeout: 5_000 });
 }
 
 /**
@@ -29,7 +29,7 @@ export async function bet(page: Page, amount: number): Promise<void> {
   const betInput = page.locator('input[type="number"]').first();
   await betInput.fill(String(amount));
   await page.getByRole('button', { name: 'Confirm Bet' }).click();
-  await expect(page.getByText('Your Turn - Choose Action')).not.toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Your Turn - Choose Action')).not.toBeVisible({ timeout: 5_000 });
 }
 
 /**
@@ -39,13 +39,13 @@ export async function raise(page: Page, amount: number): Promise<void> {
   const raiseInput = page.locator('input[type="number"]').last();
   await raiseInput.fill(String(amount));
   await page.getByRole('button', { name: 'Confirm Raise' }).click();
-  await expect(page.getByText('Your Turn - Choose Action')).not.toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Your Turn - Choose Action')).not.toBeVisible({ timeout: 5_000 });
 }
 
 /** Click the All-In button. */
 export async function allIn(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'All-In' }).click();
-  await expect(page.getByText('Your Turn - Choose Action')).not.toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Your Turn - Choose Action')).not.toBeVisible({ timeout: 5_000 });
 }
 
 /** Wait until it is this player's turn (action bar visible). */
@@ -65,7 +65,7 @@ export async function waitForPhase(page: Page, expectedPhase: string): Promise<v
 
 /** Wait for the showdown dialog to appear. */
 export async function waitForShowdown(page: Page): Promise<void> {
-  await expect(page.getByText('Showdown')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('heading', { name: 'Showdown' })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText('Who won the hand?')).toBeVisible();
 }
 
