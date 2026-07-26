@@ -1,4 +1,4 @@
-import { test, expect, Browser } from '@playwright/test';
+﻿import { test, expect, Browser } from '@playwright/test';
 import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import {
   fold,
@@ -82,7 +82,7 @@ test.describe('Hand Actions (Journey 2)', () => {
     // Get to flop: SB calls, BB checks their live pre-flop option
     await call(activePage);
     await waitForMyTurn(inactivePage);
-    // Use click directly — BB remains first actor on Flop, so turn doesn't leave inactivePage
+    // Use click directly â€” BB remains first actor on Flop, so turn doesn't leave inactivePage
     await inactivePage.getByRole('button', { name: 'Check' }).click();
 
     // Should now be on the Flop
@@ -95,14 +95,14 @@ test.describe('Hand Actions (Journey 2)', () => {
     const flopInactivePage = p1ActiveOnFlop ? inactivePage : activePage;
 
     // Record pot before check
-    const potBefore = await activePage.locator('p.text-4xl').textContent();
+    const potBefore = await activePage.locator("[data-testid='pot-amount']").textContent();
 
     // First player checks on flop
     await check(flopActivePage);
 
     // Turn passes to other player; pot unchanged
     await waitForMyTurn(flopInactivePage);
-    const potAfter = await activePage.locator('p.text-4xl').textContent();
+    const potAfter = await activePage.locator("[data-testid='pot-amount']").textContent();
     expect(potAfter).toBe(potBefore);
 
     await ctx1.close();
@@ -115,7 +115,7 @@ test.describe('Hand Actions (Journey 2)', () => {
     // Get to flop: SB calls, BB checks their live pre-flop option
     await call(activePage);
     await waitForMyTurn(inactivePage);
-    // Use click directly — BB remains first actor on Flop, so turn doesn't leave inactivePage
+    // Use click directly â€” BB remains first actor on Flop, so turn doesn't leave inactivePage
     await inactivePage.getByRole('button', { name: 'Check' }).click();
     await waitForPhase(activePage, 'Flop');
     await waitForPhase(inactivePage, 'Flop');
@@ -185,3 +185,4 @@ test.describe('Hand Actions (Journey 2)', () => {
     await ctx2.close();
   });
 });
+

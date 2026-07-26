@@ -95,7 +95,7 @@ export async function joinRoomAsCreator(page: Page, roomCode: string, playerName
  * Wait until the game state has loaded (the page shows game content, not "Connecting...").
  */
 export async function waitForGameReady(page: Page): Promise<void> {
-  await expect(page.getByText('Chip Tracker').first()).toBeVisible();
+  await expect(page.locator('[data-testid="game-page"]')).toBeVisible({ timeout: 5_000 });
   await expect(page.getByText('Connecting to game...')).not.toBeVisible({ timeout: 5_000 });
 }
 
@@ -103,16 +103,16 @@ export async function waitForGameReady(page: Page): Promise<void> {
  * Get the pot value currently displayed on the page.
  */
 export async function getPot(page: Page): Promise<number> {
-  const potEl = page.locator('text=/^\\$\\d+$/').first();
+  const potEl = page.locator('[data-testid="pot-amount"]').first();
   const text = await potEl.textContent();
-  return parseInt((text ?? '0').replace('$', ''), 10);
+  return parseInt((text ?? '0').replace(/[$,]/g, ''), 10);
 }
 
 /**
- * Get the phase text from PotDisplay.
+ * Get the phase text from PhaseStepper.
  */
 export async function getPhase(page: Page): Promise<string> {
-  const phaseEl = page.locator('.text-yellow-300').first();
+  const phaseEl = page.locator('[data-testid="phase-indicator"]').first();
   return (await phaseEl.textContent()) ?? '';
 }
 

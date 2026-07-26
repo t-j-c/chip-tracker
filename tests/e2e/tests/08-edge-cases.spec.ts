@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import { call, check, fold, waitForMyTurn, waitForPhase } from '../helpers/actions';
 
@@ -34,7 +34,7 @@ test.describe('Edge Cases', () => {
     await expect(page1.getByText('$30')).toBeVisible({ timeout: 5_000 });
 
     // Game continues: phase still PreFlop
-    await expect(page1.locator('.text-yellow-300').first()).toHaveText('PreFlop');
+    await expect(page1.locator("[data-testid='phase-indicator']")).toHaveText('PreFlop');
 
     await ctx1.close();
     await ctx2.close();
@@ -74,7 +74,7 @@ test.describe('Edge Cases', () => {
     }
 
     // After 3 hands, game is still running
-    await expect(page1.locator('.text-yellow-300').first()).toHaveText('PreFlop');
+    await expect(page1.locator("[data-testid='phase-indicator']")).toHaveText('PreFlop');
     await expect(page1.getByText('Dealer')).toBeVisible();
 
     await ctx1.close();
@@ -170,3 +170,4 @@ test.describe('Edge Cases', () => {
     await ctx2.close();
   });
 });
+

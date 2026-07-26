@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 import { createRoom, joinRoomByName, joinRoomAsCreator, createAndStartGame, waitForGameReady } from '../helpers/game';
 
 test.describe('Game Joining (Journey 1 - Connection)', () => {
@@ -50,7 +50,7 @@ test.describe('Game Joining (Journey 1 - Connection)', () => {
     await expect(page.getByLabel('Your Name')).not.toBeVisible();
   });
 
-  test('TC09 - full two-player lobby → start → both see game state', async ({ browser }) => {
+  test('TC09 - full two-player lobby â†’ start â†’ both see game state', async ({ browser }) => {
     const ctx1 = await browser.newContext();
     const ctx2 = await browser.newContext();
     const page1 = await ctx1.newPage();
@@ -67,8 +67,8 @@ test.describe('Game Joining (Journey 1 - Connection)', () => {
     await waitForGameReady(page2);
 
     // Both see the room code in header
-    await expect(page1.getByText(`Room: ${roomCode}`)).toBeVisible();
-    await expect(page2.getByText(`Room: ${roomCode}`)).toBeVisible();
+    await expect(page1.locator('[data-testid="room-code-hero"]')).toContainText(roomCode);
+    await expect(page2.locator('[data-testid="room-code-header"]')).toContainText(roomCode);
 
     // Game state is synchronized: SB+BB = 30
     await expect(page1.getByText('$30')).toBeVisible();
@@ -119,9 +119,10 @@ test.describe('Game Joining (Journey 1 - Connection)', () => {
     const roomCode = await createRoom(page);
     await joinRoomAsCreator(page, roomCode, 'Alice');
 
-    // Only 1 player — Start Game should be disabled
+    // Only 1 player â€” Start Game should be disabled
     const startBtn = page.getByRole('button', { name: 'Start Game' });
     await expect(startBtn).toBeVisible();
     await expect(startBtn).toBeDisabled();
   });
 });
+

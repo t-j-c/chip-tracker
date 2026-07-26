@@ -1,4 +1,4 @@
-import { test, expect, Page, Browser } from '@playwright/test';
+﻿import { test, expect, Page, Browser } from '@playwright/test';
 import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import { call, check, waitForMyTurn, waitForPhase, waitForShowdown } from '../helpers/actions';
 
@@ -35,7 +35,7 @@ test.describe('Street Progression (Journey 2)', () => {
     await waitForGameReady(page1);
     await waitForGameReady(page2);
 
-    // Pre-flop: SB calls, BB checks → advance to Flop
+    // Pre-flop: SB calls, BB checks â†’ advance to Flop
     const { activePage } = await getActivePage(page1, page2);
     const inactivePage = activePage === page1 ? page2 : page1;
     await call(activePage);
@@ -50,10 +50,10 @@ test.describe('Street Progression (Journey 2)', () => {
     const { page1, page2, ctx1, ctx2 } = await setupAndGoToFlop(browser);
 
     // On the Flop: phase is Flop
-    await expect(page1.locator('.text-yellow-300').first()).toHaveText('Flop');
-    await expect(page2.locator('.text-yellow-300').first()).toHaveText('Flop');
+    await expect(page1.locator("[data-testid='phase-indicator']")).toHaveText('Flop');
+    await expect(page2.locator("[data-testid='phase-indicator']")).toHaveText('Flop');
 
-    // Pot preserved: both players called 20 → pot = 40
+    // Pot preserved: both players called 20 â†’ pot = 40
     await expect(page1.getByText('$40')).toBeVisible();
 
     // Player bets reset to 0 (the "Bet:" values on player panels should be 0)
@@ -65,7 +65,7 @@ test.describe('Street Progression (Journey 2)', () => {
     await ctx2.close();
   });
 
-  test('TC22 - full PreFlop → Flop → Turn → River by checking through', async ({ browser }) => {
+  test('TC22 - full PreFlop â†’ Flop â†’ Turn â†’ River by checking through', async ({ browser }) => {
     const { page1, page2, ctx1, ctx2 } = await setupAndGoToFlop(browser);
 
     // Flop: both check
@@ -89,14 +89,14 @@ test.describe('Street Progression (Journey 2)', () => {
   test('TC23 - pot stays constant when no betting occurs across streets', async ({ browser }) => {
     const { page1, page2, ctx1, ctx2 } = await setupAndGoToFlop(browser);
 
-    const potOnFlop = await page1.locator('p.text-4xl').textContent();
+    const potOnFlop = await page1.locator("[data-testid='pot-amount']").textContent();
 
     // Check through flop
     await checkBothThrough(page1, page2);
     await waitForPhase(page1, 'Turn');
 
     // Pot unchanged on Turn
-    const potOnTurn = await page1.locator('p.text-4xl').textContent();
+    const potOnTurn = await page1.locator("[data-testid='pot-amount']").textContent();
     expect(potOnTurn).toBe(potOnFlop);
 
     // Check through turn
@@ -104,7 +104,7 @@ test.describe('Street Progression (Journey 2)', () => {
     await waitForPhase(page1, 'River');
 
     // Pot unchanged on River
-    const potOnRiver = await page1.locator('p.text-4xl').textContent();
+    const potOnRiver = await page1.locator("[data-testid='pot-amount']").textContent();
     expect(potOnRiver).toBe(potOnFlop);
 
     await ctx1.close();
@@ -115,17 +115,18 @@ test.describe('Street Progression (Journey 2)', () => {
     const { page1, page2, ctx1, ctx2 } = await setupAndGoToFlop(browser);
 
     // Both should show Flop
-    await expect(page1.locator('.text-yellow-300').first()).toHaveText('Flop');
-    await expect(page2.locator('.text-yellow-300').first()).toHaveText('Flop');
+    await expect(page1.locator("[data-testid='phase-indicator']")).toHaveText('Flop');
+    await expect(page2.locator("[data-testid='phase-indicator']")).toHaveText('Flop');
 
     // Check through flop
     await checkBothThrough(page1, page2);
 
     // Both should show Turn
-    await expect(page1.locator('.text-yellow-300').first()).toHaveText('Turn');
-    await expect(page2.locator('.text-yellow-300').first()).toHaveText('Turn');
+    await expect(page1.locator("[data-testid='phase-indicator']")).toHaveText('Turn');
+    await expect(page2.locator("[data-testid='phase-indicator']")).toHaveText('Turn');
 
     await ctx1.close();
     await ctx2.close();
   });
 });
+

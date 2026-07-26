@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 import { createAndStartGame, waitForGameReady } from '../helpers/game';
 
 test.describe('Pre-flop State (Journey 2)', () => {
@@ -25,7 +25,7 @@ test.describe('Pre-flop State (Journey 2)', () => {
     await expect(page1.getByText('$30')).toBeVisible();
 
     // Phase = PreFlop
-    await expect(page1.locator('.text-yellow-300').first()).toHaveText('PreFlop');
+    await expect(page1.locator("[data-testid='phase-indicator']")).toHaveText('PreFlop');
 
     // Dealer badge visible on one player (heads-up: dealer = SB)
     await expect(page1.getByText('Dealer')).toBeVisible();
@@ -121,7 +121,7 @@ test.describe('Pre-flop State (Journey 2)', () => {
     await expect(page2.getByText('Dealer')).toBeVisible();
 
     // Both pages show the same dealer (consistent state)
-    // The active turn indicator (🟡) on the "other player" panel from each page's perspective
+    // The active turn indicator (ðŸŸ¡) on the "other player" panel from each page's perspective
     // confirms who the dealer/SB is
     const dealerBadgeCount1 = await page1.getByText('Dealer').count();
     expect(dealerBadgeCount1).toBe(1);
@@ -130,3 +130,4 @@ test.describe('Pre-flop State (Journey 2)', () => {
     await ctx2.close();
   });
 });
+

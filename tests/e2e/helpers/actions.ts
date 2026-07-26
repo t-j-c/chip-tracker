@@ -3,7 +3,6 @@ import { Page, expect } from '@playwright/test';
 /** Click the Fold button and wait for turn to pass. */
 export async function fold(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Fold' }).click();
-  // After folding the action bar should disappear (no longer your turn)
   await expect(page.getByText('Waiting for your turn...')).toBeVisible({ timeout: 5_000 });
 }
 
@@ -21,24 +20,24 @@ export async function call(page: Page): Promise<void> {
 }
 
 /**
- * Enter a bet amount and click Confirm Bet.
- * canBet=true means there's no outstanding bet (Bet action, not Raise).
+ * Open the Bet amount picker, enter an amount, and confirm.
  */
 export async function bet(page: Page, amount: number): Promise<void> {
-  // Set the bet amount input
-  const betInput = page.locator('input[type="number"]').first();
+  await page.getByRole('button', { name: 'Bet' }).click();
+  const betInput = page.locator('[data-testid="bet-amount-input"]');
   await betInput.fill(String(amount));
-  await page.getByRole('button', { name: 'Confirm Bet' }).click();
+  await page.locator('[data-testid="confirm-bet"]').click();
   await expect(page.getByText('Your Turn - Choose Action')).not.toBeVisible({ timeout: 5_000 });
 }
 
 /**
- * Enter a raise-to amount and click Confirm Raise.
+ * Open the Raise amount picker, enter a raise-to amount, and confirm.
  */
 export async function raise(page: Page, amount: number): Promise<void> {
-  const raiseInput = page.locator('input[type="number"]').last();
+  await page.getByRole('button', { name: 'Raise' }).click();
+  const raiseInput = page.locator('[data-testid="raise-amount-input"]');
   await raiseInput.fill(String(amount));
-  await page.getByRole('button', { name: 'Confirm Raise' }).click();
+  await page.locator('[data-testid="confirm-raise"]').click();
   await expect(page.getByText('Your Turn - Choose Action')).not.toBeVisible({ timeout: 5_000 });
 }
 
@@ -60,7 +59,7 @@ export async function waitForOpponentTurn(page: Page): Promise<void> {
 
 /** Wait until the phase displayed matches expectedPhase. */
 export async function waitForPhase(page: Page, expectedPhase: string): Promise<void> {
-  await expect(page.locator('.text-yellow-300').first()).toHaveText(expectedPhase, { timeout: 5_000 });
+  await expect(page.locator('[data-testid="phase-indicator"]')).toHaveText(expectedPhase, { timeout: 5_000 });
 }
 
 /** Wait for the showdown dialog to appear. */
@@ -79,17 +78,19 @@ export async function splitPot(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Split Pot' }).click();
 }
 
-/** Click Request Undo button. */
+/** Open overflow menu and click Request Undo. */
 export async function requestUndo(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Request Undo' }).click();
+  await page.locator('[data-testid="overflow-menu-btn"]').click();
+  await page.locator('[data-testid="menu-request-undo"]').click();
 }
 
-/** Approve the undo request. */
+/** Approve an undo request from the UndoDialog. */
 export async function approveUndo(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Approve' }).click();
 }
 
-/** Decline the undo request. */
+/** Decline an undo request from the UndoDialog. */
 export async function declineUndo(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Decline' }).click();
 }
+

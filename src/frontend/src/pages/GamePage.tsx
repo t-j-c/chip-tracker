@@ -1,11 +1,15 @@
 import { useParams } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import confetti from 'canvas-confetti';
 import { useGameStore } from '../stores/gameStore';
 import { useSignalR } from '../hooks/useSignalR';
+import { useWakeLock } from '../hooks/useWakeLock';
 import { PokerAction } from '../types/game';
 import PlayerPanel from '../components/PlayerPanel';
 import PotDisplay from '../components/PotDisplay';
+import PhaseStepper from '../components/PhaseStepper';
 import ActionBar from '../components/ActionBar';
+import GameHeader from '../components/GameHeader';
 import UndoDialog from '../components/UndoDialog';
 import ShowdownDialog from '../components/ShowdownDialog';
 
@@ -28,6 +32,16 @@ export default function GamePage() {
   const [showUndoDialog, setShowUndoDialog] = useState(false);
   const [showShowdownDialog, setShowShowdownDialog] = useState(false);
   const [undoPending, setUndoPending] = useState(false);
+  // AN-8: error shake key — increment to replay animation on each new error
+  const [errorKey, setErrorKey] = useState(0);
+  // SD-5: confetti celebration state
+  const [celebratingWinnerId, setCelebratingWinnerId] = useState<string | null>(null);
+  // A11Y-6: screen reader announcements
+  const [announcement, setAnnouncement] = useState('');
+  const prevActiveRef = useRef<string | null>(null);
+  const prevPhaseRef = useRef<string | null>(null);
+  // MB-5: keep screen awake during active game
+  useWakeLock();
 
   useEffect(() => {
     if (!roomCode) return;
@@ -62,6 +76,33 @@ export default function GamePage() {
     }
   }, [undoDeclined, setUndoDeclined]);
 
+  // AN-8: increment error key to replay shake animation on each new error
+  useEffect(() => {
+    if (error) setErrorKey(k => k + 1);
+  }, [error]);
+
+  // A11Y-6: announce turn changes and phase changes to screen readers
+  useEffect(() => {
+    if (!gameState) return;
+    const { activePlayerTurnId, phase, players } = gameState;
+
+    if (phase !== prevPhaseRef.current && prevPhaseRef.current !== null) {
+      setAnnouncement(`Phase: ${phase}`);
+    } else if (activePlayerTurnId && activePlayerTurnId !== prevActiveRef.current) {
+      const active = players.find(p => p.playerId === activePlayerTurnId);
+      if (active) setAnnouncement(`${active.name}'s turn`);
+    }
+
+    prevActiveRef.current = activePlayerTurnId ?? null;
+    prevPhaseRef.current = phase;
+  }, [gameState]);
+
+  useEffect(() => {
+    if (!announcement) return;
+    const t = setTimeout(() => setAnnouncement(''), 3000);
+    return () => clearTimeout(t);
+  }, [announcement]);
+
   useEffect(() => {
     if (gameState && gameState.phase === 'Showdown' && !gameState.isHandActive) {
       setShowShowdownDialog(true);
@@ -73,11 +114,11 @@ export default function GamePage() {
 
   if (!gameState) {
     return (
-      <div className="min-h-screen bg-green-900 flex items-center justify-center text-white">
+      <div className="flex items-center justify-center h-[100dvh] bg-surface-bg">
         <div className="text-center">
-          <h1 className="text-3xl font-bold mb-4">Chip Tracker</h1>
-          <p className="text-xl">Connecting to game...</p>
-          {error && <p className="text-red-400 mt-4">{error}</p>}
+          <h1 className="text-3xl font-bold text-text-primary mb-4">Chip Tracker</h1>
+          <p className="text-text-secondary">Connecting to game...</p>
+          {error && <p className="text-accent-danger mt-4 text-sm">{error}</p>}
         </div>
       </div>
     );
@@ -86,8 +127,6 @@ export default function GamePage() {
   const isYourTurn = playerId && gameState.activePlayerTurnId === playerId;
   const currentPlayer = gameState.players.find(p => p.playerId === playerId);
   const otherPlayers = gameState.players.filter(p => p.playerId !== playerId);
-  // Keep backward compat: single "other player" for undo dialog name lookup
-  const otherPlayer = otherPlayers[0];
 
   const handleAction = (action: PokerAction, amount?: number) => {
     if (playerId && roomCode) {
@@ -113,8 +152,14 @@ export default function GamePage() {
 
   const handleSelectWinner = (winnerId: string) => {
     if (roomCode) {
-      resolveShowdown(roomCode, winnerId);
-      setShowShowdownDialog(false);
+      // SD-5: fire confetti + celebrate for 1.5s before closing
+      confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+      setCelebratingWinnerId(winnerId);
+      setTimeout(() => {
+        resolveShowdown(roomCode, winnerId);
+        setShowShowdownDialog(false);
+        setCelebratingWinnerId(null);
+      }, 1500);
     }
   };
 
@@ -133,70 +178,95 @@ export default function GamePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-900 to-green-800 p-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-white mb-2">Chip Tracker</h1>
-          <p className="text-green-100">Room: {roomCode}</p>
-          {!isConnected && (
-            <p className="text-yellow-300 text-sm mt-1 animate-pulse">Reconnecting...</p>
-          )}
-        </div>
+    <div className="flex flex-col bg-surface-bg" style={{ height: '100dvh', overflow: 'hidden' }} data-testid="game-page">
+      {/* Minimal header — undoPending no longer shown inside header (GP-27) */}
+      <GameHeader
+        roomCode={roomCode ?? ''}
+        isConnected={isConnected}
+        undoPending={false}
+        onRequestUndo={handleRequestUndo}
+      />
 
-        {/* Game Area */}
-        {/* Other players — responsive grid above */}
+      {/* GP-27: Undo request sent — top toast banner */}
+      {undoPending && (
+        <div className="animate-slide-down bg-accent-warning/20 border-b border-accent-warning/40 px-4 py-2 flex items-center justify-between gap-3">
+          <span className="text-sm text-accent-warning font-semibold animate-ellipsis">Undo requested. Waiting for approval</span>
+          <button
+            onClick={() => setUndoPending(false)}
+            className="text-xs text-accent-warning font-bold hover:underline flex-shrink-0"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {/* A11Y-6: sr-only live region for screen reader announcements */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">{announcement}</div>
+
+      {/* Scrollable main content — game-main enables landscape layout via CSS */}
+      <main className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 px-4 py-3 game-main">
+        {/* Opponent strip — horizontal scroll; game-opponents switches to vertical in landscape */}
         {otherPlayers.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-4 mb-4">
+          <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 game-opponents" style={{ scrollbarWidth: 'none' }}>
             {otherPlayers.map(p => (
               <PlayerPanel
                 key={p.playerId}
                 player={p}
                 isActivePlayer={gameState.activePlayerTurnId === p.playerId}
+                variant="opponent"
               />
             ))}
           </div>
         )}
 
-        {/* Pot display — center */}
-        <div className="flex justify-center mb-4">
+        {/* Center column: pot, phase, notifications — game-center in landscape */}
+        <div className="flex flex-col gap-3 game-center">
+          {/* Pot display */}
           <PotDisplay state={gameState} />
-        </div>
 
-        {/* Current player — bottom */}
-        <div className="flex justify-center mb-6">
-          {currentPlayer && <PlayerPanel player={currentPlayer} isActivePlayer={!!isYourTurn} />}
-        </div>
+          {/* Phase stepper */}
+          <PhaseStepper phase={gameState.phase as import('../types/game').GamePhase} />
 
-        {/* Action Bar */}
-        <div className="mb-4">
-          <ActionBar gameState={gameState} playerId={playerId} onAction={handleAction} isYourTurn={!!isYourTurn} />
-        </div>
+          {/* AN-8: error banner with shake animation */}
+          {error && (
+            <div
+              key={errorKey}
+              className="animate-shake bg-accent-danger/20 border border-accent-danger/50 text-accent-danger px-4 py-3 rounded-xl text-sm"
+            >
+              {error}
+            </div>
+          )}
 
-        {/* Error Display */}
-        {error && (
-          <div className="bg-red-200 border border-red-600 text-red-800 px-4 py-3 rounded mb-4">
-            {error}
-          </div>
-        )}
-
-        {/* Undo Button + status */}
-        <div className="text-center mb-4 space-y-2">
-          <button
-            onClick={handleRequestUndo}
-            disabled={undoPending}
-            className="bg-yellow-600 text-white font-bold py-2 px-4 rounded hover:bg-yellow-700 disabled:opacity-50"
-          >
-            {undoPending ? 'Undo Requested...' : 'Request Undo'}
-          </button>
+          {/* Undo declined notification */}
           {undoDeclined && (
-            <p className="text-red-400 text-sm">Undo was declined by other player.</p>
+            <div className="text-center text-accent-danger text-sm">
+              Undo was declined by other player.
+            </div>
           )}
         </div>
-      </div>
+
+        {/* Your player info — game-self in landscape */}
+        {currentPlayer && (
+          <div className="game-self">
+            <PlayerPanel
+              player={currentPlayer}
+              isActivePlayer={!!isYourTurn}
+              variant="self"
+            />
+          </div>
+        )}
+      </main>
+
+      {/* Action bar — bottom */}
+      <ActionBar
+        gameState={gameState}
+        playerId={playerId}
+        onAction={handleAction}
+        isYourTurn={!!isYourTurn}
+      />
 
       {/* Dialogs */}
-      {showUndoDialog && undoRequested && otherPlayer && (
+      {showUndoDialog && undoRequested && (
         <UndoDialog
           requestingPlayerName={
             gameState.players.find(p => p.playerId === undoRequested)?.name || 'Other player'
@@ -211,6 +281,7 @@ export default function GamePage() {
           gameState={gameState}
           onSelectWinner={handleSelectWinner}
           onSplitPot={handleSplitPot}
+          celebratingWinnerId={celebratingWinnerId}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import { test, expect, Browser } from '@playwright/test';
+﻿import { test, expect, Browser } from '@playwright/test';
 import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import { call, waitForMyTurn, requestUndo, approveUndo, declineUndo } from '../helpers/actions';
 
@@ -39,8 +39,8 @@ test.describe('Undo Flow (Journey: Undo)', () => {
     // The player who just acted requests undo
     await requestUndo(actingPage);
 
-    // The "Request Undo" button changes to disabled "Undo Requested..."
-    await expect(actingPage.getByRole('button', { name: 'Undo Requested...' })).toBeVisible();
+    // The undo pending indicator becomes visible in the header
+    await expect(actingPage.locator('[data-testid="undo-pending"]')).toBeVisible({ timeout: 5_000 });
 
     // Opponent sees the undo dialog
     await expect(opponentPage.getByText('Undo Request')).toBeVisible();
@@ -62,7 +62,7 @@ test.describe('Undo Flow (Journey: Undo)', () => {
     const actingPage = p1Active ? page1 : page2;
     const opponentPage = p1Active ? page2 : page1;
 
-    // SB calls → pot becomes 40
+    // SB calls â†’ pot becomes 40
     await call(actingPage);
     await waitForMyTurn(opponentPage);
     await expect(page1.getByText('$40')).toBeVisible();
@@ -138,3 +138,4 @@ test.describe('Undo Flow (Journey: Undo)', () => {
     await ctx2.close();
   });
 });
+

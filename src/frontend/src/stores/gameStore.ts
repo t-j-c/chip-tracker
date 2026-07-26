@@ -6,12 +6,19 @@ export interface LobbyPlayer {
   name: string;
 }
 
+export interface RoomSettings {
+  startingStack: number;
+  smallBlind: number;
+  bigBlind: number;
+}
+
 export interface GameStore {
   roomCode: string | null;
   playerId: string | null;
   isCreator: boolean;
   lobbyPlayers: LobbyPlayer[];
   gameState: GameState | null;
+  roomSettings: RoomSettings | null;
   isConnected: boolean;
   error: string | null;
   undoRequested: string | null;
@@ -23,6 +30,7 @@ export interface GameStore {
   setLobbyPlayers: (players: LobbyPlayer[]) => void;
   addLobbyPlayer: (player: LobbyPlayer) => void;
   setGameState: (state: GameState) => void;
+  setRoomSettings: (settings: RoomSettings | null) => void;
   setConnected: (connected: boolean) => void;
   setError: (error: string | null) => void;
   setUndoRequested: (playerId: string | null) => void;
@@ -36,6 +44,7 @@ export const useGameStore = create<GameStore>((set) => ({
   isCreator: false,
   lobbyPlayers: [],
   gameState: null,
+  roomSettings: null,
   isConnected: false,
   error: null,
   undoRequested: null,
@@ -50,6 +59,7 @@ export const useGameStore = create<GameStore>((set) => ({
       : [...state.lobbyPlayers, player],
   })),
   setGameState: (state) => set({ gameState: state }),
+  setRoomSettings: (settings) => set({ roomSettings: settings }),
   setConnected: (connected) => set({ isConnected: connected }),
   setError: (error) => set({ error }),
   setUndoRequested: (playerId) => set({ undoRequested: playerId }),
@@ -60,6 +70,7 @@ export const useGameStore = create<GameStore>((set) => ({
     isCreator: false,
     lobbyPlayers: [],
     gameState: null,
+    roomSettings: null,
     error: null,
     undoRequested: null,
     undoDeclined: null,

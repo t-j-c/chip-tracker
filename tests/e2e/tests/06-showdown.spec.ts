@@ -1,4 +1,4 @@
-import { test, expect, Page, Browser } from '@playwright/test';
+﻿import { test, expect, Page, Browser } from '@playwright/test';
 import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import { call, check, waitForMyTurn, waitForPhase, waitForShowdown, selectShowdownWinner, splitPot } from '../helpers/actions';
 
@@ -32,7 +32,7 @@ async function playToShowdown(page1: Page, page2: Page) {
   await waitForMyTurn(turn.inactive);
   await check(turn.inactive);
 
-  // River: both check → showdown
+  // River: both check â†’ showdown
   await waitForPhase(page1, 'River');
   const river = await getActive();
   await check(river.active);
@@ -188,3 +188,4 @@ test.describe('Showdown (Journey 3)', () => {
     await ctx2.close();
   });
 });
+
