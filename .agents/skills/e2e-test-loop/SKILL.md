@@ -46,6 +46,28 @@ L1 is the default working rung. Most failures are solved at L2+L3 without ever t
 
 ## Loop
 
+### 0. Preflight — Docker on PATH
+
+`global-setup.ts` shells out to `docker compose`. The agent terminal often has a **stale PATH** (VS Code was launched before Docker Desktop was installed/updated), so `docker` is missing even though it works fine in the user's own terminal. **Never conclude "Docker is not available in this environment" from a `command not found` error** — recover first:
+
+Run as a **single line** — multi-line pasted blocks get mangled by the integrated terminal:
+
+```powershell
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { $b = @([Environment]::GetEnvironmentVariable('Path','User'), [Environment]::GetEnvironmentVariable('Path','Machine')) -join ';' -split ';' | Where-Object { $_ -and (Test-Path (Join-Path $_ 'docker.exe')) } | Select-Object -First 1; if (-not $b) { $b = "$env:LOCALAPPDATA\Programs\DockerDesktop\resources\bin" }; $env:Path = "$b;$env:Path" }; docker version --format 'server={{.Server.Version}}'
+```
+
+Verified location on this machine: `C:\Users\tchoc\AppData\Local\Programs\DockerDesktop\resources\bin` (in **User** PATH, absent from Machine PATH — this is exactly why stale sessions miss it).
+
+Interpret the result:
+
+| `docker version` output | Meaning | Action |
+|---|---|---|
+| `server=<version>` | Ready | Proceed to step 1 |
+| Still `command not found` after the fix above | Docker really absent | Stop, tell the user |
+| `error during connect` / `pipe/dockerDesktopLinuxEngine` | CLI present, daemon stopped | Ask the user to start Docker Desktop; do not try to start it yourself |
+
+The PATH fix only lasts for that terminal session. Run every `playwright test` command **in the same terminal**, or re-apply the prefix. The permanent fix is for the user to restart VS Code.
+
 ### 1. Baseline run (L0 → L1)
 
 ```powershell
@@ -75,6 +97,7 @@ Do not guess, get evidence:
 
 | Symptom | Likely cause | Evidence to gather |
 |---------|--------------|--------------------|
+| `docker : The term 'docker' is not recognized` / `Failed to start Docker Compose` | Stale PATH in agent terminal, not a missing Docker | Redo step 0 in that same terminal |
 | Global setup timed out on health/frontend poll | Stack not booting | `docker compose ps --format "{{.Service}} {{.Status}}"`, then `docker compose logs backend --tail 40` |
 | Every test fails identically at first step | App regression or selector rename | Read the page component, compare to helper selectors |
 | One test fails, siblings pass | Test bug or state leakage from prior test | Trace viewer for that test |
