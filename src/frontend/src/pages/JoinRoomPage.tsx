@@ -16,7 +16,7 @@ export default function JoinRoomPage() {
   const navigate = useNavigate();
   const { setRoomCode: storeRoomCode, setPlayerId: storePlayerId, setIsCreator } = useGameStore();
 
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const apiUrl = import.meta.env.VITE_API_URL ?? '';
 
   const handleLookupRoom = async (code?: string) => {
     const lookupCode = (code ?? roomCode).trim().toUpperCase();

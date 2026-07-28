@@ -24,7 +24,7 @@ export default function CreateRoomPage() {
   // CR-4: collapsible custom form — collapsed when preset is active
   const [isCustomOpen, setIsCustomOpen] = useState(false);
 
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const apiUrl = import.meta.env.VITE_API_URL ?? '';
 
   // Inline validation errors
   const stackError = startingStack < bigBlind ? 'Stack must be at least the big blind' : null;

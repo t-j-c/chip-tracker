@@ -33,7 +33,7 @@ export default function LobbyPage() {
   const [copied, setCopied] = useState(false);
   const [creatorPlayerId, setCreatorPlayerId] = useState<string | null>(null);
 
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const apiUrl = import.meta.env.VITE_API_URL ?? '';
   const joinUrl = roomCode ? `${window.location.origin}/join?room=${roomCode}` : '';
 
   // Load room state on mount (to populate lobby players if navigating back)

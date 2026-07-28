@@ -12,7 +12,7 @@ export const useSignalR = () => {
 
   useEffect(() => {
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/hubs/game`)
+      .withUrl(`${import.meta.env.VITE_API_URL ?? ''}/hubs/game`)
       .withAutomaticReconnect()
       .build();
 
