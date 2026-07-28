@@ -26,10 +26,13 @@ const env: cdk.Environment = {
   account,
 };
 
+const imageTag = app.node.tryGetContext('imageTag') || process.env.IMAGE_TAG || 'latest';
+
 // Create stack
 new ChipTrackerStack(app, stackName, {
   projectName,
   environment,
+  imageTag,
   env,
   description: `Chip Tracker infrastructure for ${environment} environment`,
 });

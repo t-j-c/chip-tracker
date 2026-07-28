@@ -1,0 +1,172 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Backend image tag to deploy (defaults to current main SHA). Use to roll back."
+        required: false
+
+concurrency:
+  group: cd-prod
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: chip-tracker/backend
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine image tag
+        id: tag
+        run: |
+          TAG="${{ github.event.inputs.image_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="${{ github.sha }}"
+          fi
+          echo "image_tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Setup AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push backend image
+        if: github.event.inputs.image_tag == ''
+        uses: docker/build-push-action@v5
+        with:
+          context: src/backend
+          file: src/backend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.image_tag }}
+            ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build frontend
+        if: github.event.inputs.image_tag == ''
+        run: |
+          npm ci
+          npm run build
+        working-directory: src/frontend
+        env:
+          VITE_API_URL: ""
+
+      - name: Upload frontend dist
+        if: github.event.inputs.image_tag == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: src/frontend/dist
+          retention-days: 7
+
+      - name: Install infra dependencies
+        run: npm ci
+        working-directory: infra
+
+      - name: Build infra TypeScript
+        run: npm run build
+        working-directory: infra
+
+      - name: CDK synth
+        run: npx cdk synth --context env=prod --context imageTag=${{ steps.tag.outputs.image_tag }}
+        working-directory: infra
+
+      - name: Upload cloud assembly
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdk-out
+          path: infra/cdk.out
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download cloud assembly
+        uses: actions/download-artifact@v4
+        with:
+          name: cdk-out
+          path: infra/cdk.out
+
+      - name: Download frontend dist
+        if: github.event.inputs.image_tag == ''
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend-dist
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install CDK CLI
+        run: npm install -g aws-cdk
+
+      - name: Deploy infrastructure (from reviewed cloud assembly)
+        run: cdk deploy --app infra/cdk.out --require-approval never chip-tracker-prod
+
+      - name: Read stack outputs
+        id: outputs
+        run: |
+          OUT=$(aws cloudformation describe-stacks --stack-name chip-tracker-prod --query 'Stacks[0].Outputs' --output json)
+          echo "bucket=$(echo "$OUT" | jq -r '.[] | select(.OutputKey=="FrontendBucketName").OutputValue')" >> "$GITHUB_OUTPUT"
+          echo "distribution_id=$(echo "$OUT" | jq -r '.[] | select(.OutputKey=="CloudFrontDistributionId").OutputValue')" >> "$GITHUB_OUTPUT"
+          echo "cf_domain=$(echo "$OUT" | jq -r '.[] | select(.OutputKey=="CloudFrontUrl").OutputValue')" >> "$GITHUB_OUTPUT"
+
+      - name: Sync frontend to S3
+        if: github.event.inputs.image_tag == ''
+        run: |
+          aws s3 sync frontend-dist "s3://${{ steps.outputs.outputs.bucket }}" \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html"
+          aws s3 cp frontend-dist/index.html "s3://${{ steps.outputs.outputs.bucket }}/index.html" \
+            --cache-control "no-cache,no-store,must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.outputs.outputs.distribution_id }}" \
+            --paths "/*"
+
+      - name: Wait for ECS service to stabilize
+        run: |
+          aws ecs wait services-stable \
+            --cluster chip-tracker-cluster \
+            --services chip-tracker-backend
+
+      - name: Smoke test
+        run: |
+          curl -fsS "https://${{ steps.outputs.outputs.cf_domain }}/health"
