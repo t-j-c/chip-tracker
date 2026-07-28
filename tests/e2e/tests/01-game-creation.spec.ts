@@ -4,7 +4,7 @@ test.describe('Game Creation (Journey 1)', () => {
   test('TC01 - create game navigates to lobby with room code and QR code', async ({ page }) => {
     await page.goto('/');
 
-    // Standard preset (1000/10/20) is selected by default — just submit
+    // Standard preset (1000/10/20) is selected by default ï¿½ just submit
     await page.getByRole('button', { name: 'Create Game' }).click();
 
     // Navigates to lobby
