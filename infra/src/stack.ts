@@ -4,6 +4,7 @@ import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as logs from 'aws-cdk-lib/aws-logs';
@@ -43,10 +44,7 @@ export class ChipTrackerStack extends cdk.Stack {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       pointInTimeRecovery: isProduction,
-      ttl: {
-        attributeName: 'ExpirationTime',
-        enabled: true,
-      },
+      timeToLiveAttribute: 'ExpirationTime',
     });
 
     // ECR Repositories
@@ -126,9 +124,7 @@ export class ChipTrackerStack extends cdk.Stack {
         ASPNETCORE_ENVIRONMENT: isProduction ? 'Production' : 'Development',
         ASPNETCORE_URLS: 'http://+:5000',
         AWS_REGION: this.region,
-      },
-      secrets: {
-        DYNAMODB_TABLE_NAME: cdk.SecretValue.plainSecretValue(gameRoomsTable.tableName),
+        DYNAMODB_TABLE_NAME: gameRoomsTable.tableName,
       },
       portMappings: [
         {
@@ -227,7 +223,7 @@ export class ChipTrackerStack extends cdk.Stack {
       'FrontendDistribution',
       {
         defaultBehavior: {
-          origin: new cloudfront.origins.LoadBalancerOrigin(
+          origin: new origins.LoadBalancerV2Origin(
             this.backendLoadBalancer,
             {
               protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
@@ -240,7 +236,7 @@ export class ChipTrackerStack extends cdk.Stack {
         },
         additionalBehaviors: {
           '/api/*': {
-            origin: new cloudfront.origins.LoadBalancerOrigin(
+            origin: new origins.LoadBalancerV2Origin(
               this.backendLoadBalancer,
               {
                 protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
@@ -253,7 +249,7 @@ export class ChipTrackerStack extends cdk.Stack {
             compress: true,
           },
           '/hubs/*': {
-            origin: new cloudfront.origins.LoadBalancerOrigin(
+            origin: new origins.LoadBalancerV2Origin(
               this.backendLoadBalancer,
               {
                 protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,

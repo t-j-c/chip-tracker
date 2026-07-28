@@ -163,9 +163,18 @@ jobs:
     steps:
       - name: Notify Deployment
         run: |
-          if [ "${{ needs.deploy.result }}" == "success" ]; then
-            echo "✅ Infrastructure deployment successful"
-          else
-            echo "❌ Infrastructure deployment failed"
+          if [ "${{ needs.validate.result }}" != "success" ]; then
+            echo "❌ Infrastructure validation failed"
             exit 1
+          fi
+
+          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            if [ "${{ needs.deploy.result }}" == "success" ]; then
+              echo "✅ Infrastructure deployment successful"
+            else
+              echo "❌ Infrastructure deployment failed"
+              exit 1
+            fi
+          else
+            echo "✅ Infrastructure validation successful (deploy skipped, not a main push)"
           fi
