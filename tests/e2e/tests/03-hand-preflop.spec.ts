@@ -1,4 +1,4 @@
-﻿import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { createAndStartGame, waitForGameReady } from '../helpers/game';
 
 test.describe('Pre-flop State (Journey 2)', () => {
@@ -96,7 +96,7 @@ test.describe('Pre-flop State (Journey 2)', () => {
     // Check should NOT be visible (facing a bet pre-flop)
     await expect(activePage.getByRole('button', { name: 'Check' })).not.toBeVisible();
     // All-In always available
-    await expect(activePage.getByRole('button', { name: 'All-In' })).toBeVisible();
+    await expect(activePage.getByRole('button', { name: /all.in/i })).toBeVisible();
 
     await ctx1.close();
     await ctx2.close();
@@ -116,14 +116,12 @@ test.describe('Pre-flop State (Journey 2)', () => {
     await waitForGameReady(page1);
     await waitForGameReady(page2);
 
-    // "Dealer" badge should appear exactly once per page
-    await expect(page1.getByText('Dealer')).toBeVisible();
-    await expect(page2.getByText('Dealer')).toBeVisible();
+    // "Dealer" badge should appear exactly once per page (aria-label used since opponent shows 'D' not full text)
+    await expect(page1.locator('[aria-label="Dealer"]')).toBeVisible();
+    await expect(page2.locator('[aria-label="Dealer"]')).toBeVisible();
 
-    // Both pages show the same dealer (consistent state)
-    // The active turn indicator (ðŸŸ¡) on the "other player" panel from each page's perspective
-    // confirms who the dealer/SB is
-    const dealerBadgeCount1 = await page1.getByText('Dealer').count();
+    // Both pages show exactly one dealer badge
+    const dealerBadgeCount1 = await page1.locator('[aria-label="Dealer"]').count();
     expect(dealerBadgeCount1).toBe(1);
 
     await ctx1.close();

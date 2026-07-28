@@ -1,4 +1,4 @@
-﻿import { test, expect, Page, Browser } from '@playwright/test';
+import { test, expect, Page, Browser } from '@playwright/test';
 import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import { call, check, waitForMyTurn, waitForPhase, waitForShowdown } from '../helpers/actions';
 
@@ -30,12 +30,12 @@ test.describe('Street Progression (Journey 2)', () => {
     });
     await joinRoomAsCreator(page1, roomCode, 'Alice');
     await joinRoomByName(page2, roomCode, 'Bob');
-    await expect(page1.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+    await expect(page1.getByText('2 of 9 players')).toBeVisible({ timeout: 5_000 });
     await startGame(page1, roomCode);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
 
-    // Pre-flop: SB calls, BB checks â†’ advance to Flop
+    // Pre-flop: SB calls, BB checks → advance to Flop
     const { activePage } = await getActivePage(page1, page2);
     const inactivePage = activePage === page1 ? page2 : page1;
     await call(activePage);
@@ -53,7 +53,7 @@ test.describe('Street Progression (Journey 2)', () => {
     await expect(page1.locator("[data-testid='phase-indicator']")).toHaveText('Flop');
     await expect(page2.locator("[data-testid='phase-indicator']")).toHaveText('Flop');
 
-    // Pot preserved: both players called 20 â†’ pot = 40
+    // Pot preserved: both players called 20 → pot = 40
     await expect(page1.getByText('$40')).toBeVisible();
 
     // Player bets reset to 0 (the "Bet:" values on player panels should be 0)
@@ -65,7 +65,7 @@ test.describe('Street Progression (Journey 2)', () => {
     await ctx2.close();
   });
 
-  test('TC22 - full PreFlop â†’ Flop â†’ Turn â†’ River by checking through', async ({ browser }) => {
+  test('TC22 - full PreFlop → Flop → Turn → River by checking through', async ({ browser }) => {
     const { page1, page2, ctx1, ctx2 } = await setupAndGoToFlop(browser);
 
     // Flop: both check
@@ -89,23 +89,22 @@ test.describe('Street Progression (Journey 2)', () => {
   test('TC23 - pot stays constant when no betting occurs across streets', async ({ browser }) => {
     const { page1, page2, ctx1, ctx2 } = await setupAndGoToFlop(browser);
 
-    const potOnFlop = await page1.locator("[data-testid='pot-amount']").textContent();
+    // Pot on flop should be $40 (SB+BB both called: 20+20) — use toHaveText for stability
+    await expect(page1.locator("[data-testid='pot-amount']")).toHaveText('$40');
 
     // Check through flop
     await checkBothThrough(page1, page2);
     await waitForPhase(page1, 'Turn');
 
     // Pot unchanged on Turn
-    const potOnTurn = await page1.locator("[data-testid='pot-amount']").textContent();
-    expect(potOnTurn).toBe(potOnFlop);
+    await expect(page1.locator("[data-testid='pot-amount']")).toHaveText('$40');
 
     // Check through turn
     await checkBothThrough(page1, page2);
     await waitForPhase(page1, 'River');
 
     // Pot unchanged on River
-    const potOnRiver = await page1.locator("[data-testid='pot-amount']").textContent();
-    expect(potOnRiver).toBe(potOnFlop);
+    await expect(page1.locator("[data-testid='pot-amount']")).toHaveText('$40');
 
     await ctx1.close();
     await ctx2.close();

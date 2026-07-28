@@ -19,9 +19,22 @@ export async function createRoom(page: Page, opts: CreateRoomOptions = {}): Prom
 
   await page.goto('/');
 
-  await page.getByLabel('Starting Stack').fill(String(startingStack));
-  await page.getByLabel('Small Blind').fill(String(smallBlind));
-  await page.getByLabel('Big Blind').fill(String(bigBlind));
+  // Use a preset button if the values match one — avoids opening the collapsible custom section.
+  const PRESETS: Array<{ name: string; stack: number; sb: number; bb: number }> = [
+    { name: 'Casual',     stack: 1000, sb: 5,  bb: 10 },
+    { name: 'Standard',   stack: 1000, sb: 10, bb: 20 },
+    { name: 'Deep Stack', stack: 5000, sb: 25, bb: 50 },
+  ];
+  const preset = PRESETS.find(p => p.stack === startingStack && p.sb === smallBlind && p.bb === bigBlind);
+  if (preset) {
+    await page.getByRole('button', { name: preset.name }).click();
+  } else {
+    // Open the collapsible Custom Setup section before interacting with inputs
+    await page.getByRole('button', { name: 'Custom Setup' }).click();
+    await page.getByLabel('Starting Stack', { exact: true }).fill(String(startingStack));
+    await page.getByLabel('Small Blind', { exact: true }).fill(String(smallBlind));
+    await page.getByLabel('Big Blind', { exact: true }).fill(String(bigBlind));
+  }
 
   await page.getByRole('button', { name: 'Create Game' }).click();
 
@@ -74,7 +87,7 @@ export async function createAndStartGame(
   await joinRoomAsCreator(creatorPage, roomCode, creatorName);
   await joinRoomByName(joinerPage, roomCode, joinerName);
   // Wait for creator's lobby to show 2 players
-  await expect(creatorPage.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+  await expect(creatorPage.getByText('2 of 9 players')).toBeVisible({ timeout: 5_000 });
   await startGame(creatorPage, roomCode);
   return roomCode;
 }

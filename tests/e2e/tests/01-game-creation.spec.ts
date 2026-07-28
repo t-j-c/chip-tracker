@@ -1,13 +1,10 @@
-ï»¿import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 test.describe('Game Creation (Journey 1)', () => {
   test('TC01 - create game navigates to lobby with room code and QR code', async ({ page }) => {
     await page.goto('/');
 
-    await page.getByLabel('Starting Stack').fill('1000');
-    await page.getByLabel('Small Blind').fill('10');
-    await page.getByLabel('Big Blind').fill('20');
-
+    // Standard preset (1000/10/20) is selected by default — just submit
     await page.getByRole('button', { name: 'Create Game' }).click();
 
     // Navigates to lobby
@@ -19,8 +16,8 @@ test.describe('Game Creation (Journey 1)', () => {
     const code = await roomCodeEl.textContent();
     expect(code?.trim()).toMatch(/[A-Z0-9]{6}/);
 
-    // QR code SVG rendered
-    await expect(page.locator('svg')).toBeVisible();
+    // QR code rendered (role="img" scoped to QR code element)
+    await expect(page.getByRole('img')).toBeVisible();
 
     // Join Game form visible
     await expect(page.getByLabel('Your Name')).toBeVisible();
@@ -29,9 +26,11 @@ test.describe('Game Creation (Journey 1)', () => {
   test('TC02 - default form values are pre-populated', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page.getByLabel('Starting Stack')).toHaveValue('1000');
-    await expect(page.getByLabel('Small Blind')).toHaveValue('10');
-    await expect(page.getByLabel('Big Blind')).toHaveValue('20');
+    // Open the Custom Setup section to inspect the hidden inputs
+    await page.getByRole('button', { name: 'Custom Setup' }).click();
+    await expect(page.getByLabel('Starting Stack', { exact: true })).toHaveValue('1000');
+    await expect(page.getByLabel('Small Blind', { exact: true })).toHaveValue('10');
+    await expect(page.getByLabel('Big Blind', { exact: true })).toHaveValue('20');
   });
 
   test('TC03 - create game button shows Creating... while loading', async ({ page }) => {

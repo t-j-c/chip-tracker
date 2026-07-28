@@ -189,7 +189,7 @@ export default function GamePage() {
 
       {/* GP-27: Undo request sent — top toast banner */}
       {undoPending && (
-        <div className="animate-slide-down bg-accent-warning/20 border-b border-accent-warning/40 px-4 py-2 flex items-center justify-between gap-3">
+        <div data-testid="undo-pending" className="animate-slide-down bg-accent-warning/20 border-b border-accent-warning/40 px-4 py-2 flex items-center justify-between gap-3">
           <span className="text-sm text-accent-warning font-semibold animate-ellipsis">Undo requested. Waiting for approval</span>
           <button
             onClick={() => setUndoPending(false)}

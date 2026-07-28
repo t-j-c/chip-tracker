@@ -1,4 +1,4 @@
-﻿import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import { call, check, fold, waitForMyTurn, waitForPhase } from '../helpers/actions';
 
@@ -16,7 +16,7 @@ test.describe('Edge Cases', () => {
     });
     await joinRoomAsCreator(page1, roomCode, 'Alice');
     await joinRoomByName(page2, roomCode, 'Bob');
-    await expect(page1.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+    await expect(page1.getByText('2 of 9 players')).toBeVisible({ timeout: 5_000 });
     await startGame(page1, roomCode);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
@@ -53,7 +53,7 @@ test.describe('Edge Cases', () => {
     });
     await joinRoomAsCreator(page1, roomCode, 'Alice');
     await joinRoomByName(page2, roomCode, 'Bob');
-    await expect(page1.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+    await expect(page1.getByText('2 of 9 players')).toBeVisible({ timeout: 5_000 });
     await startGame(page1, roomCode);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
@@ -75,7 +75,7 @@ test.describe('Edge Cases', () => {
 
     // After 3 hands, game is still running
     await expect(page1.locator("[data-testid='phase-indicator']")).toHaveText('PreFlop');
-    await expect(page1.getByText('Dealer')).toBeVisible();
+    await expect(page1.locator('[aria-label="Dealer"]')).toBeVisible();
 
     await ctx1.close();
     await ctx2.close();
@@ -153,7 +153,7 @@ test.describe('Edge Cases', () => {
     });
     await joinRoomAsCreator(page1, roomCode, 'Alice');
     await joinRoomByName(page2, roomCode, 'Bob');
-    await expect(page1.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+    await expect(page1.getByText('2 of 9 players')).toBeVisible({ timeout: 5_000 });
     await startGame(page1, roomCode);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
@@ -164,7 +164,7 @@ test.describe('Edge Cases', () => {
 
     // Should reconnect via sessionStorage-stored playerId
     await waitForGameReady(page2);
-    await expect(page2.getByText(`Room: ${roomCode}`)).toBeVisible();
+    await expect(page2.locator('[data-testid="room-code-header"]')).toContainText(roomCode);
 
     await ctx1.close();
     await ctx2.close();

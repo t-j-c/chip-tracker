@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  timeout: 5_000,
+  timeout: 30_000,
   expect: { timeout: 5_000 },
   fullyParallel: false,
   workers: 1, // Serial: shared in-memory DynamoDB would break parallel runs

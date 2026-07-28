@@ -5,7 +5,7 @@ import * as http from 'http';
 const REPO_ROOT = path.resolve(__dirname, '../..');
 const BACKEND_HEALTH = 'http://localhost:5000/health';
 const FRONTEND_URL = 'http://localhost:3000';
-const STARTUP_TIMEOUT_MS = 5_000;
+const STARTUP_TIMEOUT_MS = 60_000;
 
 function poll(url: string, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;

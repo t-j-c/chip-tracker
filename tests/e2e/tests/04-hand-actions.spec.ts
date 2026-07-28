@@ -1,4 +1,4 @@
-﻿import { test, expect, Browser } from '@playwright/test';
+import { test, expect, Browser } from '@playwright/test';
 import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import {
   fold,
@@ -26,7 +26,7 @@ async function setupGame(browser: Browser, opts?: { stack?: number; smallBlind?:
   });
   await joinRoomAsCreator(page1, roomCode, 'Alice');
   await joinRoomByName(page2, roomCode, 'Bob');
-  await expect(page1.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+  await expect(page1.getByText('2 of 9 players')).toBeVisible({ timeout: 5_000 });
   await startGame(page1, roomCode);
   await waitForGameReady(page1);
   await waitForGameReady(page2);
@@ -55,8 +55,8 @@ test.describe('Hand Actions (Journey 2)', () => {
     await waitForPhase(inactivePage, 'PreFlop');
 
     // The winner should have received the pot (their stack > 980 or 990 depending on role)
-    // We verify a new hand started: dealer rotated (Dealer badge still present)
-    await expect(activePage.getByText('Dealer')).toBeVisible();
+    // We verify a new hand started: dealer badge still present (aria-label used since opponent shows 'D' not full text)
+    await expect(activePage.locator('[aria-label="Dealer"]')).toBeVisible();
 
     await ctx1.close();
     await ctx2.close();
@@ -82,19 +82,28 @@ test.describe('Hand Actions (Journey 2)', () => {
     // Get to flop: SB calls, BB checks their live pre-flop option
     await call(activePage);
     await waitForMyTurn(inactivePage);
-    // Use click directly â€” BB remains first actor on Flop, so turn doesn't leave inactivePage
+    // Use click directly — BB remains first actor on Flop, so turn doesn't leave inactivePage
     await inactivePage.getByRole('button', { name: 'Check' }).click();
 
     // Should now be on the Flop
     await waitForPhase(activePage, 'Flop');
     await waitForPhase(inactivePage, 'Flop');
 
-    // On flop: one player is first to act. Find who.
-    const p1ActiveOnFlop = await activePage.getByText('Your Turn - Choose Action').isVisible();
-    const flopActivePage = p1ActiveOnFlop ? activePage : inactivePage;
-    const flopInactivePage = p1ActiveOnFlop ? inactivePage : activePage;
+    // On flop: wait for a player to have their turn (ensures pot is stable)
+    let flopActivePage: Page;
+    let flopInactivePage: Page;
+    try {
+      await activePage.getByText('Your Turn - Choose Action').waitFor({ state: 'visible', timeout: 5_000 });
+      flopActivePage = activePage;
+      flopInactivePage = inactivePage;
+    } catch {
+      await inactivePage.getByText('Your Turn - Choose Action').waitFor({ state: 'visible', timeout: 5_000 });
+      flopActivePage = inactivePage;
+      flopInactivePage = activePage;
+    }
 
-    // Record pot before check
+    // Pot on flop should be $40 (SB+BB both called: 20+20)
+    await expect(activePage.locator("[data-testid='pot-amount']")).toHaveText('$40');
     const potBefore = await activePage.locator("[data-testid='pot-amount']").textContent();
 
     // First player checks on flop
@@ -115,7 +124,7 @@ test.describe('Hand Actions (Journey 2)', () => {
     // Get to flop: SB calls, BB checks their live pre-flop option
     await call(activePage);
     await waitForMyTurn(inactivePage);
-    // Use click directly â€” BB remains first actor on Flop, so turn doesn't leave inactivePage
+    // Use click directly — BB remains first actor on Flop, so turn doesn't leave inactivePage
     await inactivePage.getByRole('button', { name: 'Check' }).click();
     await waitForPhase(activePage, 'Flop');
     await waitForPhase(inactivePage, 'Flop');

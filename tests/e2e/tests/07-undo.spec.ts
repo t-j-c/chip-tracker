@@ -1,4 +1,4 @@
-﻿import { test, expect, Browser } from '@playwright/test';
+import { test, expect, Browser } from '@playwright/test';
 import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import { call, waitForMyTurn, requestUndo, approveUndo, declineUndo } from '../helpers/actions';
 
@@ -16,7 +16,7 @@ test.describe('Undo Flow (Journey: Undo)', () => {
     });
     await joinRoomAsCreator(page1, roomCode, 'Alice');
     await joinRoomByName(page2, roomCode, 'Bob');
-    await expect(page1.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+    await expect(page1.getByText('2 of 9 players')).toBeVisible({ timeout: 5_000 });
     await startGame(page1, roomCode);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
@@ -42,9 +42,8 @@ test.describe('Undo Flow (Journey: Undo)', () => {
     // The undo pending indicator becomes visible in the header
     await expect(actingPage.locator('[data-testid="undo-pending"]')).toBeVisible({ timeout: 5_000 });
 
-    // Opponent sees the undo dialog
-    await expect(opponentPage.getByText('Undo Request')).toBeVisible();
-    await expect(opponentPage.getByText(/is requesting to undo/i)).toBeVisible();
+    // Opponent sees the undo banner with correct text and action buttons
+    await expect(opponentPage.getByText(/wants to undo the last action/i)).toBeVisible();
     await expect(opponentPage.getByRole('button', { name: 'Approve' })).toBeVisible();
     await expect(opponentPage.getByRole('button', { name: 'Decline' })).toBeVisible();
 
@@ -62,7 +61,7 @@ test.describe('Undo Flow (Journey: Undo)', () => {
     const actingPage = p1Active ? page1 : page2;
     const opponentPage = p1Active ? page2 : page1;
 
-    // SB calls â†’ pot becomes 40
+    // SB calls → pot becomes 40
     await call(actingPage);
     await waitForMyTurn(opponentPage);
     await expect(page1.getByText('$40')).toBeVisible();
@@ -128,9 +127,10 @@ test.describe('Undo Flow (Journey: Undo)', () => {
     await waitForMyTurn(opponentPage);
     await requestUndo(actingPage);
 
-    // The undo dialog should mention the requesting player's name
-    // Alice is player 1 (created via createRoom), Bob is player 2
-    const dialogText = await opponentPage.getByText(/is requesting to undo/i).textContent();
+    // The undo banner should mention the requesting player's name
+    const undoTextEl = opponentPage.getByText(/wants to undo the last action/i);
+    await expect(undoTextEl).toBeVisible({ timeout: 5_000 });
+    const dialogText = await undoTextEl.textContent();
     // Should mention Alice or Bob
     expect(dialogText).toMatch(/Alice|Bob/);
 

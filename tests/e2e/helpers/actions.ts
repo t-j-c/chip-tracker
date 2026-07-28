@@ -43,7 +43,7 @@ export async function raise(page: Page, amount: number): Promise<void> {
 
 /** Click the All-In button. */
 export async function allIn(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'All-In' }).click();
+  await page.getByRole('button', { name: /all.in/i }).click();
   await expect(page.getByText('Your Turn - Choose Action')).not.toBeVisible({ timeout: 5_000 });
 }
 

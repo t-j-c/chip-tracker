@@ -1,4 +1,4 @@
-﻿import { test, expect, Page, Browser } from '@playwright/test';
+import { test, expect, Page, Browser } from '@playwright/test';
 import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import { call, check, waitForMyTurn, waitForPhase, waitForShowdown, selectShowdownWinner, splitPot } from '../helpers/actions';
 
@@ -32,7 +32,7 @@ async function playToShowdown(page1: Page, page2: Page) {
   await waitForMyTurn(turn.inactive);
   await check(turn.inactive);
 
-  // River: both check â†’ showdown
+  // River: both check → showdown
   await waitForPhase(page1, 'River');
   const river = await getActive();
   await check(river.active);
@@ -54,7 +54,7 @@ test.describe('Showdown (Journey 3)', () => {
     });
     await joinRoomAsCreator(page1, roomCode, 'Alice');
     await joinRoomByName(page2, roomCode, 'Bob');
-    await expect(page1.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+    await expect(page1.getByText('2 of 9 players')).toBeVisible({ timeout: 5_000 });
     await startGame(page1, roomCode);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
@@ -94,8 +94,8 @@ test.describe('Showdown (Journey 3)', () => {
     await waitForPhase(page1, 'PreFlop');
     await waitForPhase(page2, 'PreFlop');
 
-    // Dealer rotated: one player has the dealer badge (different from hand 1 since it rotates)
-    await expect(page1.getByText('Dealer')).toBeVisible();
+    // Dealer badge present on page1 (aria-label used since opponent shows 'D' not full text)
+    await expect(page1.locator('[aria-label="Dealer"]')).toBeVisible();
 
     await ctx1.close();
     await ctx2.close();
@@ -144,7 +144,7 @@ test.describe('Showdown (Journey 3)', () => {
     });
     await joinRoomAsCreator(page1, roomCode, 'Alice');
     await joinRoomByName(page2, roomCode, 'Bob');
-    await expect(page1.getByText('Players (2')).toBeVisible({ timeout: 5_000 });
+    await expect(page1.getByText('2 of 9 players')).toBeVisible({ timeout: 5_000 });
     await startGame(page1, roomCode);
     await waitForGameReady(page1);
     await waitForGameReady(page2);
@@ -164,9 +164,9 @@ test.describe('Showdown (Journey 3)', () => {
     await waitForPhase(page1, 'PreFlop');
     await waitForPhase(page2, 'PreFlop');
 
-    // Dealer badge still present on both screens (dealer rotated but badge exists)
-    await expect(page1.getByText('Dealer')).toBeVisible();
-    await expect(page2.getByText('Dealer')).toBeVisible();
+    // Dealer badge still present on both screens (aria-label used since opponent shows 'D' not full text)
+    await expect(page1.locator('[aria-label="Dealer"]')).toBeVisible();
+    await expect(page2.locator('[aria-label="Dealer"]')).toBeVisible();
 
     await ctx1.close();
     await ctx2.close();
