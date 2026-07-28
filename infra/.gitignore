@@ -6,6 +6,7 @@ npm-debug.log
 # CDK
 lib/
 cdk.out/
+cdk.context.json
 *.d.ts
 *.js
 *.js.map
