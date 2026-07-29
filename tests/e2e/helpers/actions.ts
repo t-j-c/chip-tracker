@@ -20,23 +20,71 @@ export async function call(page: Page): Promise<void> {
 }
 
 /**
- * Open the Bet amount picker, enter an amount, and confirm.
+ * Move the active bet/raise slider to an exact amount and confirm.
+ */
+async function setPickerAmount(page: Page, type: 'bet' | 'raise', amount: number): Promise<void> {
+  const slider = page.getByRole('slider', { name: /amount$/i });
+  await slider.focus();
+
+  await page.keyboard.press('Home');
+  let current = Number(await slider.getAttribute('aria-valuenow'));
+  const target = amount;
+
+  if (current !== target) {
+    await page.keyboard.press('PageUp');
+    const afterPageUp = Number(await slider.getAttribute('aria-valuenow'));
+    const largeStep = Math.max(Math.abs(afterPageUp - current), 1);
+    current = afterPageUp;
+
+    while (current < target) {
+      const remaining = target - current;
+      if (remaining >= largeStep) {
+        await page.keyboard.press('PageUp');
+      } else {
+        await page.keyboard.press('ArrowRight');
+      }
+      const next = Number(await slider.getAttribute('aria-valuenow'));
+      if (next === current) break;
+      current = next;
+    }
+
+    while (current > target) {
+      const remaining = current - target;
+      if (remaining >= largeStep) {
+        await page.keyboard.press('PageDown');
+      } else {
+        await page.keyboard.press('ArrowLeft');
+      }
+      const next = Number(await slider.getAttribute('aria-valuenow'));
+      if (next === current) break;
+      current = next;
+    }
+  }
+
+  if (current !== target) {
+    throw new Error(`Failed to set ${type} amount to ${amount}, ended at ${current}`);
+  }
+
+  const display = page.locator(`[data-testid="${type}-amount-input"]`);
+  await expect(display).toHaveText(`$${target.toLocaleString()}`);
+}
+
+/**
+ * Open the Bet amount picker, choose an amount with the slider, and confirm.
  */
 export async function bet(page: Page, amount: number): Promise<void> {
   await page.getByRole('button', { name: 'Bet' }).click();
-  const betInput = page.locator('[data-testid="bet-amount-input"]');
-  await betInput.fill(String(amount));
+  await setPickerAmount(page, 'bet', amount);
   await page.locator('[data-testid="confirm-bet"]').click();
   await expect(page.getByText('Your Turn - Choose Action')).not.toBeVisible({ timeout: 5_000 });
 }
 
 /**
- * Open the Raise amount picker, enter a raise-to amount, and confirm.
+ * Open the Raise amount picker, choose a raise-to amount with the slider, and confirm.
  */
 export async function raise(page: Page, amount: number): Promise<void> {
   await page.getByRole('button', { name: 'Raise' }).click();
-  const raiseInput = page.locator('[data-testid="raise-amount-input"]');
-  await raiseInput.fill(String(amount));
+  await setPickerAmount(page, 'raise', amount);
   await page.locator('[data-testid="confirm-raise"]').click();
   await expect(page.getByText('Your Turn - Choose Action')).not.toBeVisible({ timeout: 5_000 });
 }

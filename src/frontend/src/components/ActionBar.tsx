@@ -68,6 +68,7 @@ export default function ActionBar({ gameState, playerId, onAction, isYourTurn }:
           type={picker.type}
           min={isRaise ? minRaiseTo : minBet}
           max={isRaise ? maxRaiseTo : maxBet}
+          step={gameState.bigBlind}
           pot={gameState.pot}
           onConfirm={(amount) => {
             setPicker(null);

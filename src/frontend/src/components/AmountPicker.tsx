@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import * as Slider from '@radix-ui/react-slider';
 import { ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -8,6 +8,7 @@ interface AmountPickerProps {
   min: number;
   max: number;
   pot: number;
+  step: number;
   onConfirm: (amount: number) => void;
   onCancel: () => void;
 }
@@ -21,6 +22,7 @@ export default function AmountPicker({
   min,
   max,
   pot,
+  step,
   onConfirm,
   onCancel,
 }: AmountPickerProps) {
@@ -35,18 +37,27 @@ export default function AmountPicker({
   // GP-21: snap points for slider — pot fractions + boundaries
   const snapPoints = [...new Set([min, halfPot, threeFourthPot, pot, max].filter(v => v >= min && v <= max))];
   const snapThreshold = Math.max(2, Math.round((max - min) * 0.02));
+  const isPointerDragging = useRef(false);
 
   const handleSliderChange = ([v]: number[]) => {
-    const nearest = snapPoints.reduce((best, p) => Math.abs(p - v) < Math.abs(best - v) ? p : best, v);
-    const snapped = Math.abs(nearest - v) <= snapThreshold ? nearest : v;
-    // GP-21: haptic feedback — stronger on snap point, subtle otherwise
-    if (snapped !== v) {
-      navigator.vibrate?.(10);
+    const value = clamp(v, min, max);
+    if (isPointerDragging.current) {
+      const nearest = snapPoints.reduce((best, p) => Math.abs(p - v) < Math.abs(best - v) ? p : best, v);
+      const snapped = Math.abs(nearest - v) <= snapThreshold ? nearest : v;
+      // GP-21: haptic feedback — stronger on snap point, subtle otherwise
+      if (snapped !== v) {
+        navigator.vibrate?.(10);
+      } else {
+        navigator.vibrate?.(3);
+      }
+      setAmount(snapped);
     } else {
-      navigator.vibrate?.(3);
+      setAmount(value);
     }
-    setAmount(snapped);
   };
+
+  const decrementAmount = () => setAmount(clamp(amount - step, min, max));
+  const incrementAmount = () => setAmount(clamp(amount + step, min, max));
 
   const setPreset = (value: number) => setAmount(clamp(value, min, max));
 
@@ -74,6 +85,9 @@ export default function AmountPicker({
         step={1}
         value={[amount]}
         onValueChange={handleSliderChange}
+        onPointerDown={() => { isPointerDragging.current = true; }}
+        onPointerUp={() => { isPointerDragging.current = false; }}
+        onLostPointerCapture={() => { isPointerDragging.current = false; }}
         className="relative flex items-center select-none touch-none w-full h-10 mb-4"
         aria-label={`${label} amount`}
       >
@@ -91,6 +105,7 @@ export default function AmountPicker({
         {halfPot >= min && (
           <button
             onClick={() => setPreset(halfPot)}
+            data-testid="preset-half-pot"
             className={cn(
               'flex-1 py-2 text-xs font-semibold rounded-full border transition-colors',
               amount === halfPot
@@ -104,6 +119,7 @@ export default function AmountPicker({
         {threeFourthPot >= min && (
           <button
             onClick={() => setPreset(threeFourthPot)}
+            data-testid="preset-three-quarter-pot"
             className={cn(
               'flex-1 py-2 text-xs font-semibold rounded-full border transition-colors',
               amount === threeFourthPot
@@ -117,6 +133,7 @@ export default function AmountPicker({
         {pot >= min && (
           <button
             onClick={() => setPreset(pot)}
+            data-testid="preset-pot"
             className={cn(
               'flex-1 py-2 text-xs font-semibold rounded-full border transition-colors',
               amount === pot
@@ -129,6 +146,7 @@ export default function AmountPicker({
         )}
         <button
           onClick={() => setPreset(max)}
+          data-testid="preset-all-in"
           className={cn(
             'flex-1 py-2 text-xs font-semibold rounded-full border transition-colors',
             amount === max
@@ -140,27 +158,41 @@ export default function AmountPicker({
         </button>
       </div>
 
-      {/* Manual input + confirm */}
-      <div className="flex gap-3">
-        <input
-          type="number"
-          inputMode="numeric"
-          value={amount}
-          min={min}
-          max={max}
-          onChange={(e) => setAmount(clamp(Number(e.target.value) || min, min, max))}
-          className="w-28 px-3 py-2 rounded-xl bg-surface-elevated text-text-primary font-mono text-sm border border-surface-card focus:border-accent-primary focus:outline-none"
-          aria-label={`${label} amount`}
-          data-testid={testId}
-        />
+      {/* Amount display + steppers */}
+      <div className="flex items-center gap-3 mb-4">
         <button
-          onClick={() => onConfirm(amount)}
-          className="flex-1 py-3 rounded-xl bg-accent-primary text-white font-bold text-sm hover:bg-accent-primary/90 active:scale-95 transition-all"
-          data-testid={`confirm-${type}`}
+          onClick={decrementAmount}
+          disabled={amount <= min}
+          aria-label={`Decrease ${label} amount`}
+          data-testid="amount-step-down"
+          className="w-12 h-12 rounded-2xl bg-surface-elevated text-text-secondary font-bold text-lg hover:bg-surface-card disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all"
         >
-          {confirmLabel}
+          −
+        </button>
+        <div
+          data-testid={testId}
+          aria-live="polite"
+          className="flex-1 px-4 py-3 rounded-2xl bg-surface-elevated text-center font-mono text-lg font-semibold text-text-primary"
+        >
+          ${amount.toLocaleString()}
+        </div>
+        <button
+          onClick={incrementAmount}
+          disabled={amount >= max}
+          aria-label={`Increase ${label} amount`}
+          data-testid="amount-step-up"
+          className="w-12 h-12 rounded-2xl bg-surface-elevated text-text-secondary font-bold text-lg hover:bg-surface-card disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all"
+        >
+          +
         </button>
       </div>
+      <button
+        onClick={() => onConfirm(amount)}
+        className="w-full py-3 rounded-xl bg-accent-primary text-white font-bold text-sm hover:bg-accent-primary/90 active:scale-95 transition-all"
+        data-testid={`confirm-${type}`}
+      >
+        {confirmLabel}
+      </button>
     </div>
   );
 }

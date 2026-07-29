@@ -3,6 +3,7 @@ import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameRe
 import {
   call,
   allIn,
+  bet,
   waitForMyTurn,
   waitForShowdown,
   selectShowdownWinner,
@@ -108,9 +109,7 @@ test.describe('All-In Resolution (Regression: heads-up first-hand all-in)', () =
     const flopFirstActor = await activePage.getByText('Your Turn - Choose Action').isVisible() ? activePage : inactivePage;
     const flopOther = flopFirstActor === activePage ? inactivePage : activePage;
 
-    await flopFirstActor.getByRole('button', { name: 'Bet' }).click();
-    await flopFirstActor.locator('[data-testid="bet-amount-input"]').fill('40');
-    await flopFirstActor.locator('[data-testid="confirm-bet"]').click();
+    await bet(flopFirstActor, 40);
 
     await waitForMyTurn(flopOther);
     await flopOther.getByRole('button', { name: /^Call/ }).click();

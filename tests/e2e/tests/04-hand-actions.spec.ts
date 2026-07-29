@@ -156,6 +156,80 @@ test.describe('Hand Actions (Journey 2)', () => {
     await ctx2.close();
   });
 
+  test('TC18a - amount picker: all controls adjust the bet amount', async ({ browser }) => {
+    const { activePage, inactivePage, ctx1, ctx2 } = await setupGame(browser);
+
+    // Get to flop: SB calls, BB checks their live pre-flop option.
+    await call(activePage);
+    await waitForMyTurn(inactivePage);
+    await inactivePage.getByRole('button', { name: 'Check' }).click();
+    await waitForPhase(activePage, 'Flop');
+    await waitForPhase(inactivePage, 'Flop');
+
+    const p1ActiveOnFlop = await activePage.getByText('Your Turn - Choose Action').isVisible();
+    const flopActivePage = p1ActiveOnFlop ? activePage : inactivePage;
+
+    const potBefore = 40;
+    await expect(flopActivePage.locator('[data-testid="pot-amount"]')).toHaveText('$40');
+
+    await flopActivePage.getByRole('button', { name: 'Bet' }).click();
+
+    const display = flopActivePage.locator('[data-testid="bet-amount-input"]');
+    await expect(display).toHaveCount(1);
+    await expect(flopActivePage.locator('input[data-testid="bet-amount-input"]')).toHaveCount(0);
+    await expect(display).toHaveText('$20');
+
+    await flopActivePage.getByTestId('preset-three-quarter-pot').click();
+    await expect(display).toHaveText('$30');
+
+    await flopActivePage.getByTestId('preset-pot').click();
+    await expect(display).toHaveText('$40');
+
+    await flopActivePage.getByTestId('preset-all-in').click();
+
+    const slider = flopActivePage.getByRole('slider', { name: /amount$/i });
+    await slider.focus();
+
+    const min = Number(await slider.getAttribute('aria-valuemin'));
+    const max = Number(await slider.getAttribute('aria-valuemax'));
+    await expect(display).toHaveText(`$${max.toLocaleString()}`);
+
+    await flopActivePage.getByTestId('amount-step-down').click();
+    await expect(display).toHaveText(`$${Math.max(min, max - 20).toLocaleString()}`);
+
+    await flopActivePage.getByTestId('amount-step-up').click();
+    await expect(display).toHaveText(`$${max.toLocaleString()}`);
+    await expect(flopActivePage.getByTestId('amount-step-up')).toBeDisabled();
+    await slider.focus();
+
+    await flopActivePage.keyboard.press('Home');
+    await expect(slider).toHaveAttribute('aria-valuenow', String(min));
+
+    await flopActivePage.keyboard.press('End');
+    await expect(slider).toHaveAttribute('aria-valuenow', String(max));
+
+    await flopActivePage.keyboard.press('Home');
+    await flopActivePage.keyboard.press('ArrowRight');
+    await expect(slider).toHaveAttribute('aria-valuenow', String(min + 1));
+
+    const sliderBox = await slider.boundingBox();
+    if (!sliderBox) throw new Error('Slider bounding box not available');
+    await flopActivePage.mouse.move(sliderBox.x + 5, sliderBox.y + sliderBox.height / 2);
+    await flopActivePage.mouse.down();
+    await flopActivePage.mouse.move(sliderBox.x + sliderBox.width * 0.7, sliderBox.y + sliderBox.height / 2);
+    await flopActivePage.mouse.up();
+
+    const draggedAmount = Number((await display.textContent())?.replace(/[^0-9]/g, '') || '0');
+    expect(draggedAmount).toBeGreaterThan(min + 1);
+
+    const expectedPot = potBefore + draggedAmount;
+    await flopActivePage.getByTestId('confirm-bet').click();
+    await expect(flopActivePage.locator('[data-testid="pot-amount"]')).toHaveText(`$${expectedPot}`);
+
+    await ctx1.close();
+    await ctx2.close();
+  });
+
   test('TC19 - raise: pot increases further, original bettor must respond', async ({ browser }) => {
     const { activePage, inactivePage, ctx1, ctx2 } = await setupGame(browser);
 
