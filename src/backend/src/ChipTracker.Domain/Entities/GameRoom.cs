@@ -6,6 +6,8 @@ public class GameRoom
     public List<Player> Players { get; set; } = [];
     public GameState? CurrentState { get; set; }
     public List<GameState> StateHistory { get; set; } = [];
+    public string? PendingUndoRequestBy { get; set; }
+    public DateTime? UndoRequestedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime LastUpdatedAt { get; set; }
 
@@ -28,6 +30,7 @@ public class GameRoom
         if (CurrentState != null)
             StateHistory.Add(CurrentState.Clone());
         CurrentState = newState;
+        ClearPendingUndo();
         LastUpdatedAt = DateTime.UtcNow;
     }
 
@@ -41,7 +44,14 @@ public class GameRoom
 
         CurrentState = StateHistory[^1];
         StateHistory.RemoveAt(StateHistory.Count - 1);
+        ClearPendingUndo();
         LastUpdatedAt = DateTime.UtcNow;
         return true;
+    }
+
+    public void ClearPendingUndo()
+    {
+        PendingUndoRequestBy = null;
+        UndoRequestedAt = null;
     }
 }

@@ -22,6 +22,7 @@ export default function GamePage() {
     gameState,
     isConnected,
     undoRequested,
+    undoPendingSelf,
     undoDeclined,
     roomSettings,
     error,
@@ -29,13 +30,13 @@ export default function GamePage() {
     setPlayerId,
     setIsCreator,
     setUndoRequested,
+    setUndoPendingSelf,
     setUndoDeclined,
     setRoomSettings,
   } = useGameStore();
-  const { joinRoom, submitAction, requestUndo, approveUndo, declineUndo, resolveShowdown, resolveSplitPot, resolveShowdownWithAwards, rebuy, declineRebuy } = useSignalR();
+  const { joinRoom, submitAction, requestUndo, approveUndo, declineUndo, cancelUndo, resolveShowdown, resolveSplitPot, resolveShowdownWithAwards, rebuy, declineRebuy } = useSignalR();
   const [showUndoDialog, setShowUndoDialog] = useState(false);
   const [showShowdownDialog, setShowShowdownDialog] = useState(false);
-  const [undoPending, setUndoPending] = useState(false);
   // AN-8: error shake key — increment to replay animation on each new error
   const [errorKey, setErrorKey] = useState(0);
   // SD-5: confetti celebration state
@@ -90,15 +91,14 @@ export default function GamePage() {
 
   useEffect(() => {
     if (undoRequested && playerId && undoRequested !== playerId) {
-      // Only show dialog to the player who RECEIVED the request (not the requester)
       setShowUndoDialog(true);
+    } else {
+      setShowUndoDialog(false);
     }
   }, [undoRequested, playerId]);
 
   useEffect(() => {
     if (undoDeclined) {
-      // Requester gets notified their undo was declined
-      setUndoPending(false);
       const timer = setTimeout(() => setUndoDeclined(null), 3000);
       return () => clearTimeout(timer);
     }
@@ -186,6 +186,13 @@ export default function GamePage() {
     setUndoRequested(null);
   };
 
+  const handleCancelUndo = () => {
+    if (playerId && roomCode) {
+      cancelUndo(roomCode, playerId);
+    }
+    setUndoPendingSelf(false);
+  };
+
   const handleSelectWinner = (winnerId: string) => {
     if (roomCode) {
       // SD-5: fire confetti + celebrate for 1.5s before closing
@@ -216,7 +223,7 @@ export default function GamePage() {
   const handleRequestUndo = () => {
     if (playerId && roomCode) {
       requestUndo(roomCode, playerId);
-      setUndoPending(true);
+      setUndoPendingSelf(true);
     }
   };
 
@@ -238,16 +245,17 @@ export default function GamePage() {
       <GameHeader
         roomCode={roomCode ?? ''}
         isConnected={isConnected}
-        undoPending={false}
+        undoPending={undoPendingSelf}
         onRequestUndo={handleRequestUndo}
       />
 
       {/* GP-27: Undo request sent — top toast banner */}
-      {undoPending && (
+      {undoPendingSelf && (
         <div data-testid="undo-pending" className="animate-slide-down bg-accent-warning/20 border-b border-accent-warning/40 px-4 py-2 flex items-center justify-between gap-3">
           <span className="text-sm text-accent-warning font-semibold animate-ellipsis">Undo requested. Waiting for approval</span>
           <button
-            onClick={() => setUndoPending(false)}
+            onClick={handleCancelUndo}
+            data-testid="undo-cancel"
             className="text-xs text-accent-warning font-bold hover:underline flex-shrink-0"
           >
             Cancel

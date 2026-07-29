@@ -8,7 +8,7 @@ import type { LobbyPlayer } from '../stores/gameStore';
 export const useSignalR = () => {
   const connectionRef = useRef<signalR.HubConnection | null>(null);
   const startPromiseRef = useRef<Promise<void> | null>(null);
-  const { setGameState, setError, setUndoRequested, setUndoDeclined, setConnected, addLobbyPlayer } = useGameStore();
+  const { setGameState, setError, setUndoRequested, setUndoPendingSelf, clearUndoRequest, setUndoDeclined, setConnected, addLobbyPlayer } = useGameStore();
 
   useEffect(() => {
     const connection = new signalR.HubConnectionBuilder()
@@ -21,14 +21,24 @@ export const useSignalR = () => {
     // Register event handlers
     connection.on('GameStateUpdated', (state: GameState) => {
       setGameState(state);
+      clearUndoRequest();
     });
 
     connection.on('UndoRequested', (requestingPlayerId: string) => {
       setUndoRequested(requestingPlayerId);
     });
 
+    connection.on('UndoApproved', () => {
+      clearUndoRequest();
+    });
+
     connection.on('UndoDeclined', (decliningPlayerId: string) => {
+      clearUndoRequest();
       setUndoDeclined(decliningPlayerId);
+    });
+
+    connection.on('UndoCancelled', () => {
+      clearUndoRequest();
     });
 
     connection.on('Error', (message: string) => {
@@ -61,7 +71,7 @@ export const useSignalR = () => {
     return () => {
       connection.stop();
     };
-  }, [setGameState, setError, setUndoRequested, setUndoDeclined, setConnected, addLobbyPlayer]);
+  }, [setGameState, setError, setUndoRequested, setUndoPendingSelf, clearUndoRequest, setUndoDeclined, setConnected, addLobbyPlayer]);
 
   const joinRoom = useCallback(async (roomCode: string, playerId: string) => {
     if (!connectionRef.current) return;
@@ -103,6 +113,14 @@ export const useSignalR = () => {
     if (!connectionRef.current) return;
     connectionRef.current.invoke('DeclineUndo', roomCode, playerId).catch(err => {
       console.error('Error declining undo:', err);
+    });
+  }, []);
+
+  /** Cancels an in-flight undo request. */
+  const cancelUndo = useCallback((roomCode: string, playerId: string) => {
+    if (!connectionRef.current) return;
+    connectionRef.current.invoke('CancelUndo', roomCode, playerId).catch(err => {
+      console.error('Error cancelling undo:', err);
     });
   }, []);
 
@@ -157,6 +175,7 @@ export const useSignalR = () => {
     requestUndo,
     approveUndo,
     declineUndo,
+    cancelUndo,
     resolveShowdown,
     resolveSplitPot,
     resolveShowdownWithAwards,

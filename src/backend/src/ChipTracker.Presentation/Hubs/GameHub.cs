@@ -11,7 +11,9 @@ public interface IGameClient
 {
     Task GameStateUpdated(object gameState);
     Task UndoRequested(string requestingPlayerId);
+    Task UndoApproved(string approvingPlayerId);
     Task UndoDeclined(string decliningPlayerId);
+    Task UndoCancelled(string cancellingPlayerId);
     Task Error(string message);
     Task PlayerJoined(PlayerDto player, int playerCount);
     Task GameStarted(object gameState);
@@ -120,7 +122,15 @@ public class GameHub : Hub<IGameClient>
         try
         {
             _logger.LogInformation("Player {PlayerId} in room {RoomCode} requesting undo", playerId, roomCode);
-            // Only notify — state unchanged until other player approves
+            var command = new RequestUndoCommand { RoomCode = roomCode, PlayerId = playerId };
+            var result = await _mediator.Send(command);
+
+            if (!result.Success)
+            {
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to request undo");
+                return;
+            }
+
             await Clients.GroupExcept(roomCode, Context.ConnectionId).UndoRequested(playerId);
         }
         catch (Exception ex)
@@ -244,12 +254,46 @@ public async Task ResolveShowdown(string roomCode, string winnerPlayerId, bool i
         try
         {
             _logger.LogInformation("Player {PlayerId} declined undo in room {RoomCode}", decliningPlayerId, roomCode);
+
+            var command = new ClearUndoRequestCommand { RoomCode = roomCode, PlayerId = decliningPlayerId, IsCancel = false };
+            var result = await _mediator.Send(command);
+
+            if (!result.Success)
+            {
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to decline undo");
+                return;
+            }
+
             await Clients.GroupExcept(roomCode, Context.ConnectionId).UndoDeclined(decliningPlayerId);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in DeclineUndo");
             await Clients.Client(Context.ConnectionId).Error($"Failed to decline undo: {ex.Message}");
+        }
+    }
+
+    public async Task CancelUndo(string roomCode, string playerId)
+    {
+        try
+        {
+            _logger.LogInformation("Player {PlayerId} cancelled undo in room {RoomCode}", playerId, roomCode);
+
+            var command = new ClearUndoRequestCommand { RoomCode = roomCode, PlayerId = playerId, IsCancel = true };
+            var result = await _mediator.Send(command);
+
+            if (!result.Success)
+            {
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to cancel undo");
+                return;
+            }
+
+            await Clients.GroupExcept(roomCode, Context.ConnectionId).UndoCancelled(playerId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in CancelUndo");
+            await Clients.Client(Context.ConnectionId).Error($"Failed to cancel undo: {ex.Message}");
         }
     }
 

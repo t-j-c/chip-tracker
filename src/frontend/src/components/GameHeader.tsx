@@ -53,14 +53,6 @@ export default function GameHeader({
 
       {/* Center: room code + undo pending */}
       <div className="flex items-center gap-2">
-        {undoPending && (
-          <span
-            className="text-xs text-accent-warning font-semibold animate-pulse"
-            data-testid="undo-pending"
-          >
-            Undo Requested...
-          </span>
-        )}
         <button
           onClick={handleCopyCode}
           className="flex items-center gap-1 px-2 py-1 rounded-md bg-surface-elevated text-text-secondary text-xs font-mono hover:text-text-primary transition-colors"

@@ -1,6 +1,6 @@
 import { test, expect, Browser } from '@playwright/test';
 import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
-import { call, waitForMyTurn, requestUndo, approveUndo, declineUndo } from '../helpers/actions';
+import { call, waitForMyTurn, requestUndo, approveUndo, declineUndo, cancelUndo } from '../helpers/actions';
 
 test.describe('Undo Flow (Journey: Undo)', () => {
   async function setupGame(browser: Browser) {
@@ -75,6 +75,7 @@ test.describe('Undo Flow (Journey: Undo)', () => {
     // State reverts: pot back to 30, actingPage has turn back
     await expect(page1.getByText('$30')).toBeVisible({ timeout: 5_000 });
     await waitForMyTurn(actingPage);
+    await expect(actingPage.locator('[data-testid="undo-pending"]')).not.toBeVisible({ timeout: 5_000 });
 
     await ctx1.close();
     await ctx2.close();
@@ -111,12 +112,37 @@ test.describe('Undo Flow (Journey: Undo)', () => {
 
     // Requesting player sees "Undo was declined" message
     await expect(actingPage.getByText(/Undo was declined/i)).toBeVisible({ timeout: 5_000 });
+    await expect(actingPage.locator('[data-testid="undo-pending"]')).not.toBeVisible({ timeout: 5_000 });
 
     await ctx1.close();
     await ctx2.close();
   });
 
-  test('TC34 - requester name shown correctly in undo dialog', async ({ browser }) => {
+  test('TC34 - cancel undo removes the requester banner and opponent dialog', async ({ browser }) => {
+    const { page1, page2, ctx1, ctx2 } = await setupGame(browser);
+
+    const p1Active = await page1.getByText('Your Turn - Choose Action').isVisible();
+    const actingPage = p1Active ? page1 : page2;
+    const opponentPage = p1Active ? page2 : page1;
+
+    await call(actingPage);
+    await waitForMyTurn(opponentPage);
+    await requestUndo(actingPage);
+
+    await expect(actingPage.locator('[data-testid="undo-pending"]')).toBeVisible({ timeout: 5_000 });
+    await expect(opponentPage.getByText(/wants to undo the last action/i)).toBeVisible();
+
+    await cancelUndo(actingPage);
+
+    await expect(actingPage.locator('[data-testid="undo-pending"]')).not.toBeVisible({ timeout: 5_000 });
+    await expect(opponentPage.getByText(/wants to undo the last action/i)).not.toBeVisible({ timeout: 5_000 });
+    await expect(actingPage.getByText(/Undo was declined/i)).not.toBeVisible();
+
+    await ctx1.close();
+    await ctx2.close();
+  });
+
+  test('TC35 - requester name shown correctly in undo dialog', async ({ browser }) => {
     const { page1, page2, ctx1, ctx2 } = await setupGame(browser);
 
     const p1Active = await page1.getByText('Your Turn - Choose Action').isVisible();

@@ -22,6 +22,12 @@ public class UndoActionCommandHandler : IRequestHandler<UndoActionCommand, UndoA
         if (room == null)
             return new UndoActionResult { Success = false, Error = "Room not found" };
 
+        if (room.PendingUndoRequestBy == null)
+            return new UndoActionResult { Success = false, Error = "No pending undo request" };
+
+        if (room.PendingUndoRequestBy == request.PlayerId)
+            return new UndoActionResult { Success = false, Error = "Cannot approve your own undo request" };
+
         // Undo last action
         var undoSuccess = room.UndoLastAction();
         if (!undoSuccess)

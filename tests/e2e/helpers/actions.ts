@@ -142,3 +142,8 @@ export async function declineUndo(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Decline' }).click();
 }
 
+/** Cancel the local undo-pending banner. */
+export async function cancelUndo(page: Page): Promise<void> {
+  await page.locator('[data-testid="undo-cancel"]').click();
+}
+

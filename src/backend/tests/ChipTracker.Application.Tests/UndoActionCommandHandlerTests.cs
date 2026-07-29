@@ -87,13 +87,14 @@ public class UndoActionCommandHandlerTests
         var result = await _handler.Handle(new UndoActionCommand { RoomCode = "ABC123", PlayerId = "p1" }, CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        result.Error.Should().Contain("No actions to undo");
+        result.Error.Should().Contain("No pending undo request");
     }
 
     [Fact]
     public async Task Handle_RestoresPreviousState_AndBroadcasts()
     {
         var room = MakeRoomWithHistory();
+        room.PendingUndoRequestBy = "p2";
         var turnBeforeUndo = room.CurrentState!.ActivePlayerTurnId;
         _repo.GetByRoomCodeAsync("ABC123", Arg.Any<CancellationToken>()).Returns(room);
 
