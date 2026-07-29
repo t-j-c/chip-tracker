@@ -27,6 +27,12 @@ public class ProcessActionCommandHandler : IRequestHandler<ProcessActionCommand,
             return new ProcessActionResult { Success = false, Error = "Room not found" };
         }
 
+        if (room.CurrentState == null)
+        {
+            await _notifier.NotifyError("", "Game has not started");
+            return new ProcessActionResult { Success = false, Error = "Game has not started" };
+        }
+
         // Create action request
         var actionRequest = new ActionRequest
         {

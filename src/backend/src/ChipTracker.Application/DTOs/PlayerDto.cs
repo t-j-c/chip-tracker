@@ -9,4 +9,6 @@ public class PlayerDto
     public bool HasFolded { get; set; }
     public bool IsAllIn { get; set; }
     public bool IsDealer { get; set; }
+    public bool IsAwaitingRebuy { get; set; }
+    public bool IsEliminated { get; set; }
 }

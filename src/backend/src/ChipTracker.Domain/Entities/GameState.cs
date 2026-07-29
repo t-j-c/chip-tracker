@@ -21,6 +21,14 @@ public class GameState
     public string? StreetFirstActorId { get; set; }
 
     /// <summary>
+    /// The pots awaiting winner selection at showdown. Populated when the hand reaches
+    /// Showdown (built from each in-hand player's whole-hand contribution). A single pot
+    /// means no side pots were needed; multiple pots mean one or more all-ins at different
+    /// stack depths split the contested chips into a main pot and side pot(s).
+    /// </summary>
+    public List<PotShare> Pots { get; set; } = [];
+
+    /// <summary>
     /// Creates a deep copy of this game state.
     /// </summary>
     public GameState Clone()
@@ -37,7 +45,8 @@ public class GameState
             BigBlind = BigBlind,
             MinRaise = MinRaise,
             IsHandActive = IsHandActive,
-            StreetFirstActorId = StreetFirstActorId
+            StreetFirstActorId = StreetFirstActorId,
+            Pots = Pots.Select(p => p.Clone()).ToList()
         };
     }
 }

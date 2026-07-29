@@ -32,7 +32,9 @@ export default function ActionBar({ gameState, playerId, onAction, isYourTurn }:
     setTimeout(() => setCooldown(false), 500);
   };
 
-  if (!gameState || !playerId || !isYourTurn) {
+  const handIsAcceptingActions = !!gameState?.isHandActive && gameState.phase !== 'Showdown';
+
+  if (!gameState || !playerId || !isYourTurn || !handIsAcceptingActions) {
     return (
       <div
         className="bg-surface-card border-t border-surface-elevated px-4 py-4 text-center text-text-secondary"

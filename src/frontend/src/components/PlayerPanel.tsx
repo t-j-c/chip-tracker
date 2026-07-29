@@ -132,8 +132,20 @@ export default function PlayerPanel({ player, isActivePlayer, variant = 'opponen
         </span>
       )}
 
+      {player.isAwaitingRebuy && (
+        <span className="text-[10px] bg-accent-warning text-text-on-light px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide">
+          Deciding
+        </span>
+      )}
+
+      {player.isEliminated && (
+        <span className="text-[10px] bg-surface-elevated text-text-secondary px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide">
+          Eliminated
+        </span>
+      )}
+
       {/* Folded overlay text */}
-      {player.hasFolded && (
+      {player.hasFolded && !player.isEliminated && (
         <div className="absolute inset-0 flex items-center justify-center rounded-xl">
           <span className="text-[9px] font-bold text-text-secondary tracking-widest uppercase rotate-12 opacity-80">
             Folded

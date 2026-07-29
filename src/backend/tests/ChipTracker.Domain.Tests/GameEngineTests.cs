@@ -588,6 +588,8 @@ public class GameEngineTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.IsHandActive.Should().BeFalse("both players all-in, hand over");
+        result.Value.Phase.Should().Be(GamePhase.Showdown, "no further action possible - jump straight to showdown");
+        result.Value.ActivePlayerTurnId.Should().BeNull("no one is left able to act");
     }
 
     // ──────────────────────────────────────────────────────────────────────────

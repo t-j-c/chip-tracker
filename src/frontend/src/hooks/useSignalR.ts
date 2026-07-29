@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 import * as signalR from '@microsoft/signalr';
-import type { GameState } from '../types/game';
+import type { GameState, PotAward } from '../types/game';
 import { PokerAction } from '../types/game';
 import { useGameStore } from '../stores/gameStore';
 import type { LobbyPlayer } from '../stores/gameStore';
@@ -124,6 +124,33 @@ export const useSignalR = () => {
     });
   }, [setError]);
 
+  /** Resolve showdown with one winner-list per pot (used when the hand has side pots). */
+  const resolveShowdownWithAwards = useCallback((roomCode: string, awards: PotAward[]) => {
+    if (!connectionRef.current) return;
+    connectionRef.current.invoke('ResolveShowdownWithAwards', roomCode, awards).catch(err => {
+      console.error('Error resolving showdown with awards:', err);
+      setError('Failed to resolve showdown');
+    });
+  }, [setError]);
+
+  /** Buys a busted (or previously eliminated) player back in for the room's starting stack. */
+  const rebuy = useCallback((roomCode: string, playerId: string) => {
+    if (!connectionRef.current) return;
+    connectionRef.current.invoke('Rebuy', roomCode, playerId).catch(err => {
+      console.error('Error rebuying:', err);
+      setError('Failed to rebuy');
+    });
+  }, [setError]);
+
+  /** Cashes a busted player out instead of rebuying. */
+  const declineRebuy = useCallback((roomCode: string, playerId: string) => {
+    if (!connectionRef.current) return;
+    connectionRef.current.invoke('DeclineRebuy', roomCode, playerId).catch(err => {
+      console.error('Error declining rebuy:', err);
+      setError('Failed to cash out');
+    });
+  }, [setError]);
+
   return {
     joinRoom,
     submitAction,
@@ -132,5 +159,8 @@ export const useSignalR = () => {
     declineUndo,
     resolveShowdown,
     resolveSplitPot,
+    resolveShowdownWithAwards,
+    rebuy,
+    declineRebuy,
   };
 };

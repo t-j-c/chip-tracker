@@ -1,4 +1,4 @@
-import { test, expect, Browser } from '@playwright/test';
+import { test, expect, Browser, Page } from '@playwright/test';
 import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import {
   fold,
@@ -10,6 +10,7 @@ import {
   waitForMyTurn,
   waitForOpponentTurn,
   waitForPhase,
+  waitForShowdown,
 } from '../helpers/actions';
 
 /** Helper: sets up a two-player game and returns the active/inactive pages based on whose turn it is. */
@@ -189,6 +190,17 @@ test.describe('Hand Actions (Journey 2)', () => {
 
     // The all-in player's panel should show "All In"
     await expect(inactivePage.getByText('All In')).toBeVisible();
+
+    // Opponent calls the all-in — both players are now all-in. Regression coverage for the bug
+    // where the caller incorrectly kept getting offered fold/check/bet after both were all-in.
+    await call(inactivePage);
+
+    await waitForShowdown(activePage);
+    await waitForShowdown(inactivePage);
+
+    // No action buttons should remain visible on either screen once the hand is over.
+    await expect(activePage.getByRole('button', { name: 'Fold' })).not.toBeVisible();
+    await expect(inactivePage.getByRole('button', { name: 'Fold' })).not.toBeVisible();
 
     await ctx1.close();
     await ctx2.close();

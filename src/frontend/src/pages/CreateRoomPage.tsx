@@ -95,7 +95,7 @@ export default function CreateRoomPage() {
           <button
             type="button"
             onClick={() => onChange(Math.max(min, value - step))}
-            className="w-11 h-11 rounded-xl bg-surface-elevated text-text-primary font-bold text-xl hover:bg-surface-card transition-colors active:scale-95 flex items-center justify-center"
+            className="w-11 h-11 shrink-0 rounded-xl bg-surface-elevated text-text-primary font-bold text-xl hover:bg-surface-card transition-colors active:scale-95 flex items-center justify-center"
             aria-label={`Decrease ${label}`}
           >
             −
@@ -108,14 +108,14 @@ export default function CreateRoomPage() {
             value={value}
             onChange={(e) => { onChange(Math.max(min, parseInt(e.target.value) || min)); setSelectedPreset(null); }}
             className={cn(
-              'flex-1 text-center px-3 py-2.5 rounded-xl bg-surface-elevated text-text-primary font-mono font-bold text-lg border focus:outline-none transition-colors',
+              'flex-1 min-w-0 text-center px-3 py-2.5 rounded-xl bg-surface-elevated text-text-primary font-mono font-bold text-lg border focus:outline-none transition-colors',
               error ? 'border-accent-danger ring-2 ring-accent-danger/40 focus:border-accent-danger' : 'border-surface-card focus:border-accent-primary'
             )}
           />
           <button
             type="button"
             onClick={() => onChange(value + step)}
-            className="w-11 h-11 rounded-xl bg-surface-elevated text-text-primary font-bold text-xl hover:bg-surface-card transition-colors active:scale-95 flex items-center justify-center"
+            className="w-11 h-11 shrink-0 rounded-xl bg-surface-elevated text-text-primary font-bold text-xl hover:bg-surface-card transition-colors active:scale-95 flex items-center justify-center"
             aria-label={`Increase ${label}`}
           >
             +

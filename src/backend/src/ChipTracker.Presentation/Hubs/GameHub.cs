@@ -196,6 +196,46 @@ public async Task ResolveShowdown(string roomCode, string winnerPlayerId, bool i
     }
 
     /// <summary>
+    /// Resolves a showdown with side pots: one winner-list per pot, matched by index against
+    /// the current state's Pots. Used instead of <see cref="ResolveShowdown"/> whenever the
+    /// hand produced more than one pot.
+    /// </summary>
+    public async Task ResolveShowdownWithAwards(string roomCode, List<PotAwardDto> awards)
+    {
+        try
+        {
+            _logger.LogInformation("Resolving multi-pot showdown in room {RoomCode} with {PotCount} pots",
+                roomCode, awards.Count);
+
+            var command = new ResolveShowdownCommand
+            {
+                RoomCode = roomCode,
+                Awards = [.. awards.Select(a => new ChipTracker.Domain.Entities.PotAward
+                {
+                    PotIndex = a.PotIndex,
+                    WinnerPlayerIds = a.WinnerPlayerIds
+                })]
+            };
+
+            var result = await _mediator.Send(command);
+
+            if (result.Success)
+            {
+                await Clients.Group(roomCode).GameStateUpdated(result.GameState!);
+            }
+            else
+            {
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to resolve showdown");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in ResolveShowdownWithAwards");
+            await Clients.Client(Context.ConnectionId).Error($"Failed to resolve showdown: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Notifies the room that an undo request was declined by the other player.
     /// No state change — just broadcasts the decline so the requester can be informed.
     /// </summary>
@@ -210,6 +250,60 @@ public async Task ResolveShowdown(string roomCode, string winnerPlayerId, bool i
         {
             _logger.LogError(ex, "Error in DeclineUndo");
             await Clients.Client(Context.ConnectionId).Error($"Failed to decline undo: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Buys a busted (or previously eliminated) player back in for the room's starting stack.
+    /// </summary>
+    public async Task Rebuy(string roomCode, string playerId)
+    {
+        try
+        {
+            _logger.LogInformation("Player {PlayerId} rebuying in room {RoomCode}", playerId, roomCode);
+
+            var result = await _mediator.Send(new RebuyCommand { RoomCode = roomCode, PlayerId = playerId });
+
+            if (result.Success)
+            {
+                await Clients.Group(roomCode).GameStateUpdated(result.GameState!);
+            }
+            else
+            {
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to rebuy");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in Rebuy");
+            await Clients.Client(Context.ConnectionId).Error($"Failed to rebuy: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Cashes a busted player out instead of rebuying, marking them eliminated.
+    /// </summary>
+    public async Task DeclineRebuy(string roomCode, string playerId)
+    {
+        try
+        {
+            _logger.LogInformation("Player {PlayerId} declining rebuy in room {RoomCode}", playerId, roomCode);
+
+            var result = await _mediator.Send(new DeclineRebuyCommand { RoomCode = roomCode, PlayerId = playerId });
+
+            if (result.Success)
+            {
+                await Clients.Group(roomCode).GameStateUpdated(result.GameState!);
+            }
+            else
+            {
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to cash out");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in DeclineRebuy");
+            await Clients.Client(Context.ConnectionId).Error($"Failed to cash out: {ex.Message}");
         }
     }
 }

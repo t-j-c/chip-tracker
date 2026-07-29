@@ -8,6 +8,8 @@ interface PotDisplayProps {
 export default function PotDisplay({ state }: PotDisplayProps) {
   const callAmount = state.currentBet;
   const animatedPot = useAnimatedNumber(state.pot);
+  const pots = state.pots ?? [];
+  const hasSidePots = pots.length > 1;
 
   return (
     <div
@@ -24,6 +26,15 @@ export default function PotDisplay({ state }: PotDisplayProps) {
       {state.isHandActive && callAmount > 0 && (
         <div className="text-sm text-green-200 mt-2">
           Bet to call: <span className="text-white font-semibold">${callAmount.toLocaleString()}</span>
+        </div>
+      )}
+      {hasSidePots && (
+        <div className="text-xs text-green-200 mt-2 space-y-0.5" data-testid="pot-breakdown">
+          {pots.map((p, i) => (
+            <div key={i}>
+              {i === 0 ? 'Main Pot' : `Side Pot ${i}`}: ${p.amount.toLocaleString()}
+            </div>
+          ))}
         </div>
       )}
     </div>

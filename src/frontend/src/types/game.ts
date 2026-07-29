@@ -25,6 +25,18 @@ export interface Player {
   hasFolded: boolean;
   isAllIn: boolean;
   isDealer: boolean;
+  isAwaitingRebuy: boolean;
+  isEliminated: boolean;
+}
+
+export interface PotShare {
+  amount: number;
+  eligiblePlayerIds: string[];
+}
+
+export interface PotAward {
+  potIndex: number;
+  winnerPlayerIds: string[];
 }
 
 export interface GameState {
@@ -38,6 +50,7 @@ export interface GameState {
   bigBlind: number;
   minRaise: number;
   isHandActive: boolean;
+  pots: PotShare[];
 }
 
 export interface ActionRequest {

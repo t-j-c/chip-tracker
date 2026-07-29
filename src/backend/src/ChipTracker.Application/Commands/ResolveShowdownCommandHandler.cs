@@ -24,23 +24,38 @@ public class ResolveShowdownCommandHandler : IRequestHandler<ResolveShowdownComm
         if (room == null)
             return new ResolveShowdownResult { Success = false, Error = "Room not found" };
 
+        if (room.CurrentState == null)
+            return new ResolveShowdownResult { Success = false, Error = "Game has not started" };
+
         var state = room.CurrentState;
 
         // Only allow resolution at showdown phase or when hand is already inactive (all-in runout)
         if (state.Phase != GamePhase.Showdown && state.IsHandActive)
             return new ResolveShowdownResult { Success = false, Error = "Hand is still in progress" };
 
+        // Clone before mutating: ResolveShowdown/ResolveSplitPot/AwardPots mutate in place, so
+        // PushState must be given a distinct object from room.CurrentState or the pre-resolution
+        // showdown state pushed into history would already reflect the post-resolution result,
+        // breaking undo.
         GameState newState;
-        if (request.IsSplit)
+        if (request.Awards.Count > 0)
         {
-            newState = GameEngine.ResolveSplitPot(state);
+            var result = GameEngine.AwardPots(state.Clone(), request.Awards);
+            if (!result.IsSuccess)
+                return new ResolveShowdownResult { Success = false, Error = result.Error };
+
+            newState = result.Value!;
+        }
+        else if (request.IsSplit)
+        {
+            newState = GameEngine.ResolveSplitPot(state.Clone());
         }
         else
         {
             if (!room.Players.Any(p => p.PlayerId == request.WinnerPlayerId))
                 return new ResolveShowdownResult { Success = false, Error = "Winner not found" };
 
-            newState = GameEngine.ResolveShowdown(state, request.WinnerPlayerId);
+            newState = GameEngine.ResolveShowdown(state.Clone(), request.WinnerPlayerId);
         }
 
         room.PushState(newState);

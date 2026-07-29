@@ -1,10 +1,11 @@
 import { useParams } from 'react-router-dom';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { useGameStore } from '../stores/gameStore';
 import { useSignalR } from '../hooks/useSignalR';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { PokerAction } from '../types/game';
+import type { PotAward, GetRoomResponse } from '../types/game';
 import PlayerPanel from '../components/PlayerPanel';
 import PotDisplay from '../components/PotDisplay';
 import PhaseStepper from '../components/PhaseStepper';
@@ -12,6 +13,7 @@ import ActionBar from '../components/ActionBar';
 import GameHeader from '../components/GameHeader';
 import UndoDialog from '../components/UndoDialog';
 import ShowdownDialog from '../components/ShowdownDialog';
+import RebuyDialog from '../components/RebuyDialog';
 
 export default function GamePage() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -21,14 +23,16 @@ export default function GamePage() {
     isConnected,
     undoRequested,
     undoDeclined,
+    roomSettings,
     error,
     setRoomCode,
     setPlayerId,
     setIsCreator,
     setUndoRequested,
     setUndoDeclined,
+    setRoomSettings,
   } = useGameStore();
-  const { joinRoom, submitAction, requestUndo, approveUndo, declineUndo, resolveShowdown, resolveSplitPot } = useSignalR();
+  const { joinRoom, submitAction, requestUndo, approveUndo, declineUndo, resolveShowdown, resolveSplitPot, resolveShowdownWithAwards, rebuy, declineRebuy } = useSignalR();
   const [showUndoDialog, setShowUndoDialog] = useState(false);
   const [showShowdownDialog, setShowShowdownDialog] = useState(false);
   const [undoPending, setUndoPending] = useState(false);
@@ -59,6 +63,30 @@ export default function GamePage() {
       joinRoom(roomCode, playerId);
     }
   }, [roomCode, playerId, setRoomCode, setPlayerId, setIsCreator, joinRoom]);
+
+  // Fetch room settings (starting stack) if not already known, e.g. after a direct page
+  // refresh into /room/:code that skipped the lobby flow — needed to show the rebuy amount.
+  const fetchRoomSettings = useCallback(async () => {
+    if (!roomCode || roomSettings) return;
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL ?? '';
+      const res = await fetch(`${apiUrl}/api/rooms/${roomCode}`);
+      const data: GetRoomResponse = await res.json();
+      if (data.success && data.roomInfo) {
+        setRoomSettings({
+          startingStack: data.roomInfo.startingStack,
+          smallBlind: data.roomInfo.smallBlind,
+          bigBlind: data.roomInfo.bigBlind,
+        });
+      }
+    } catch {
+      // Non-fatal: rebuy dialog falls back to a generic label without the amount.
+    }
+  }, [roomCode, roomSettings, setRoomSettings]);
+
+  useEffect(() => {
+    fetchRoomSettings();
+  }, [fetchRoomSettings]);
 
   useEffect(() => {
     if (undoRequested && playerId && undoRequested !== playerId) {
@@ -104,10 +132,14 @@ export default function GamePage() {
   }, [announcement]);
 
   useEffect(() => {
+    // Open only when the hand actually ended at Showdown awaiting a winner selection.
+    // (!isHandActive alone is not enough — it's also true while waiting on a busted
+    // player's rebuy decision, which has its own dialog and no pots left to resolve.)
     if (gameState && gameState.phase === 'Showdown' && !gameState.isHandActive) {
       setShowShowdownDialog(true);
-    } else if (gameState && gameState.isHandActive) {
-      // New hand started — close showdown dialog
+    } else if (gameState && gameState.phase !== 'Showdown') {
+      // Showdown was resolved (new hand started, or blocked awaiting a rebuy decision that
+      // resets Phase back to PreFlop) — close the showdown dialog either way.
       setShowShowdownDialog(false);
     }
   }, [gameState]);
@@ -127,6 +159,10 @@ export default function GamePage() {
   const isYourTurn = playerId && gameState.activePlayerTurnId === playerId;
   const currentPlayer = gameState.players.find(p => p.playerId === playerId);
   const otherPlayers = gameState.players.filter(p => p.playerId !== playerId);
+  const seatedPlayers = gameState.players.filter(p => !p.isEliminated);
+  const othersAwaitingRebuy = otherPlayers.filter(p => p.isAwaitingRebuy);
+  const showRebuyDialog = !!currentPlayer?.isAwaitingRebuy;
+  const waitingForPlayers = !gameState.isHandActive && !showRebuyDialog && othersAwaitingRebuy.length === 0 && seatedPlayers.length < 2;
 
   const handleAction = (action: PokerAction, amount?: number) => {
     if (playerId && roomCode) {
@@ -170,10 +206,29 @@ export default function GamePage() {
     }
   };
 
+  const handleResolveAwards = (awards: PotAward[]) => {
+    if (roomCode) {
+      resolveShowdownWithAwards(roomCode, awards);
+      setShowShowdownDialog(false);
+    }
+  };
+
   const handleRequestUndo = () => {
     if (playerId && roomCode) {
       requestUndo(roomCode, playerId);
       setUndoPending(true);
+    }
+  };
+
+  const handleRebuy = () => {
+    if (playerId && roomCode) {
+      rebuy(roomCode, playerId);
+    }
+  };
+
+  const handleCashOut = () => {
+    if (playerId && roomCode) {
+      declineRebuy(roomCode, playerId);
     }
   };
 
@@ -226,6 +281,37 @@ export default function GamePage() {
 
           {/* Phase stepper */}
           <PhaseStepper phase={gameState.phase as import('../types/game').GamePhase} />
+
+          {/* Waiting on another player's rebuy decision */}
+          {othersAwaitingRebuy.length > 0 && (
+            <div
+              data-testid="waiting-for-rebuy"
+              className="text-center text-text-secondary text-sm bg-surface-card rounded-xl px-4 py-3 animate-pulse"
+            >
+              Waiting for {othersAwaitingRebuy.map(p => p.name).join(', ')} to buy back in...
+            </div>
+          )}
+
+          {/* Not enough seated players to continue */}
+          {waitingForPlayers && (
+            <div
+              data-testid="waiting-for-players"
+              className="text-center text-text-secondary text-sm bg-surface-card rounded-xl px-4 py-3"
+            >
+              Waiting for more players to join or buy back in...
+            </div>
+          )}
+
+          {/* Eliminated player — persistent option to buy back in */}
+          {currentPlayer?.isEliminated && (
+            <button
+              data-testid="buy-back-in-button"
+              onClick={handleRebuy}
+              className="bg-accent-primary text-white font-bold py-3 px-4 rounded-xl transition-all hover:opacity-90 active:scale-95"
+            >
+              {roomSettings ? `Buy Back In for $${roomSettings.startingStack.toLocaleString()}` : 'Buy Back In'}
+            </button>
+          )}
 
           {/* AN-8: error banner with shake animation */}
           {error && (
@@ -281,7 +367,16 @@ export default function GamePage() {
           gameState={gameState}
           onSelectWinner={handleSelectWinner}
           onSplitPot={handleSplitPot}
+          onResolveAwards={handleResolveAwards}
           celebratingWinnerId={celebratingWinnerId}
+        />
+      )}
+
+      {showRebuyDialog && roomSettings && (
+        <RebuyDialog
+          startingStack={roomSettings.startingStack}
+          onRebuy={handleRebuy}
+          onCashOut={handleCashOut}
         />
       )}
     </div>
