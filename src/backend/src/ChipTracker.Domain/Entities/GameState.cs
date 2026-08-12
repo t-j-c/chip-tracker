@@ -29,6 +29,18 @@ public class GameState
     public List<PotShare> Pots { get; set; } = [];
 
     /// <summary>
+    /// Transient log of activity entries emitted by this state's engine operations.
+    /// Drained into GameRoom.ActivityLog when PushState is called, and cleared.
+    /// </summary>
+    public List<ActivityEntry> PendingLog { get; set; } = [];
+
+    /// <summary>
+    /// The hand number within this game session, starting at 1. Incremented by engine
+    /// when a new hand begins (TryStartHand).
+    /// </summary>
+    public int HandNumber { get; set; } = 0;
+
+    /// <summary>
     /// Creates a deep copy of this game state.
     /// </summary>
     public GameState Clone()
@@ -46,7 +58,9 @@ public class GameState
             MinRaise = MinRaise,
             IsHandActive = IsHandActive,
             StreetFirstActorId = StreetFirstActorId,
-            Pots = Pots.Select(p => p.Clone()).ToList()
+            Pots = Pots.Select(p => p.Clone()).ToList(),
+            PendingLog = PendingLog.Select(e => e.Clone()).ToList(),
+            HandNumber = HandNumber
         };
     }
 }

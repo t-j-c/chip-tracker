@@ -1,5 +1,5 @@
 import { useParams } from 'react-router-dom';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import { useGameStore } from '../stores/gameStore';
 import { useSignalR } from '../hooks/useSignalR';
@@ -14,6 +14,8 @@ import GameHeader from '../components/GameHeader';
 import UndoDialog from '../components/UndoDialog';
 import ShowdownDialog from '../components/ShowdownDialog';
 import RebuyDialog from '../components/RebuyDialog';
+import { ActivityStrip } from '../components/ActivityStrip';
+import { ActivityHistoryModal } from '../components/ActivityHistoryModal';
 
 export default function GamePage() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -37,6 +39,7 @@ export default function GamePage() {
   const { joinRoom, submitAction, requestUndo, approveUndo, declineUndo, cancelUndo, resolveShowdown, resolveSplitPot, resolveShowdownWithAwards, rebuy, declineRebuy } = useSignalR();
   const [showUndoDialog, setShowUndoDialog] = useState(false);
   const [showShowdownDialog, setShowShowdownDialog] = useState(false);
+  const [showActivityHistory, setShowActivityHistory] = useState(false);
   // AN-8: error shake key — increment to replay animation on each new error
   const [errorKey, setErrorKey] = useState(0);
   // SD-5: confetti celebration state
@@ -45,6 +48,10 @@ export default function GamePage() {
   const [announcement, setAnnouncement] = useState('');
   const prevActiveRef = useRef<string | null>(null);
   const prevPhaseRef = useRef<string | null>(null);
+  
+  // Memoize recent activity to prevent unnecessary re-renders and modal dependency loops
+  const recentActivity = useMemo(() => gameState?.recentActivity ?? [], [gameState?.recentActivity]);
+  
   // MB-5: keep screen awake during active game
   useWakeLock();
 
@@ -266,6 +273,14 @@ export default function GamePage() {
       {/* A11Y-6: sr-only live region for screen reader announcements */}
       <div aria-live="polite" aria-atomic="true" className="sr-only">{announcement}</div>
 
+      {/* Activity strip — sticky banner showing most recent activity */}
+      {gameState && (
+        <ActivityStrip
+          entries={recentActivity}
+          onOpenHistory={() => setShowActivityHistory(true)}
+        />
+      )}
+
       {/* Scrollable main content — game-main enables landscape layout via CSS */}
       <main className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 px-4 py-3 game-main">
         {/* Opponent strip — horizontal scroll; game-opponents switches to vertical in landscape */}
@@ -387,6 +402,14 @@ export default function GamePage() {
           onCashOut={handleCashOut}
         />
       )}
+
+      {/* Activity history modal */}
+      <ActivityHistoryModal
+        open={showActivityHistory}
+        onOpenChange={setShowActivityHistory}
+        roomCode={roomCode ?? ''}
+        fallbackEntries={recentActivity}
+      />
     </div>
   );
 }

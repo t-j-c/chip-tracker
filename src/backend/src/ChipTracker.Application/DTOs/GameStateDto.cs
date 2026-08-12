@@ -15,6 +15,7 @@ public class GameStateDto
     public int MinRaise { get; set; }
     public bool IsHandActive { get; set; }
     public List<PotShareDto> Pots { get; set; } = [];
+    public List<ActivityEntryDto> RecentActivity { get; set; } = [];
 
     public static GameStateDto MapFromDomain(GameState state)
     {
@@ -47,5 +48,19 @@ public class GameStateDto
                 EligiblePlayerIds = p.EligiblePlayerIds
             }).ToList()
         };
+    }
+
+    public static GameStateDto MapFromDomain(GameRoom room)
+    {
+        var dto = MapFromDomain(room.CurrentState!);
+        
+        // Include the last ~20 activity entries
+        const int recentActivityCount = 20;
+        dto.RecentActivity = room.ActivityLog
+            .TakeLast(recentActivityCount)
+            .Select(ActivityEntryDto.MapFromDomain)
+            .ToList();
+
+        return dto;
     }
 }

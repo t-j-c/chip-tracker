@@ -51,6 +51,7 @@ export interface GameState {
   minRaise: number;
   isHandActive: boolean;
   pots: PotShare[];
+  recentActivity?: ActivityEntry[];
 }
 
 export interface ActionRequest {
@@ -97,5 +98,40 @@ export interface GetRoomResponse {
   success: boolean;
   roomInfo?: RoomInfo;
   gameState?: GameState;
+  error?: string;
+}
+
+export const ActivityEntryType = {
+  PlayerAction: 'PlayerAction',
+  PhaseAdvanced: 'PhaseAdvanced',
+  PotWon: 'PotWon',
+  BlindPosted: 'BlindPosted',
+  Refund: 'Refund',
+  Rebuy: 'Rebuy',
+  CashOut: 'CashOut',
+  HandStarted: 'HandStarted',
+} as const;
+export type ActivityEntryType = (typeof ActivityEntryType)[keyof typeof ActivityEntryType];
+
+export interface ActivityEntry {
+  sequence: number;
+  entryType: ActivityEntryType;
+  playerId?: string;
+  action?: PokerAction;
+  amount: number;
+  oldPhase?: GamePhase;
+  newPhase?: GamePhase;
+  stateVersion: number;
+  isUndone: boolean;
+  playerName?: string;
+  phase?: GamePhase;
+  potIndex?: number;
+  blindType?: 'SmallBlind' | 'BigBlind';
+  handNumber: number;
+}
+
+export interface GetActivityLogResponse {
+  success: boolean;
+  entries?: ActivityEntry[];
   error?: string;
 }

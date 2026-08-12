@@ -102,4 +102,20 @@ api.MapPost("/rooms/{roomCode}/start", async (string roomCode, StartGameRequest 
         : Results.BadRequest(new { success = false, gameState = (object?)null, error = result.Error });
 });
 
+// Get activity log endpoint — returns activity history with pagination
+api.MapGet("/rooms/{roomCode}/activity", async (string roomCode, int? limit, int? offset, IMediator mediator) =>
+{
+    try
+    {
+        var query = new GetGameActivityLogQuery(roomCode, limit, offset);
+        var result = await mediator.Send(query);
+
+        return Results.Ok(new { success = true, entries = result.Entries, total = result.Total, limit = result.Limit, offset = result.Offset, error = (string?)null });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.NotFound(new { success = false, error = ex.Message });
+    }
+});
+
 app.Run();

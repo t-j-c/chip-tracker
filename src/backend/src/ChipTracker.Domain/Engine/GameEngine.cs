@@ -10,6 +10,28 @@ namespace ChipTracker.Domain.Engine;
 public static class GameEngine
 {
     /// <summary>
+    /// Helper to emit an activity entry to the pending log.
+    /// Auto-stamps Phase, PlayerName, and HandNumber if not already set.
+    /// </summary>
+    private static void Emit(GameState state, ActivityEntry entry)
+    {
+        // Auto-stamp fields if not already set
+        entry.Phase ??= state.Phase;
+        entry.HandNumber = state.HandNumber;
+        
+        if (entry.PlayerId != null && entry.PlayerName == null)
+        {
+            var player = state.Players.FirstOrDefault(p => p.PlayerId == entry.PlayerId);
+            if (player != null)
+            {
+                entry.PlayerName = player.Name;
+            }
+        }
+        
+        state.PendingLog.Add(entry);
+    }
+
+    /// <summary>
     /// Validates an action request and returns either the new game state or an error message.
     /// </summary>
     public static Result<GameState> ValidateAction(GameState state, ActionRequest request)
@@ -58,6 +80,14 @@ public static class GameEngine
         var player = newState.Players.First(p => p.PlayerId == requestingPlayer.PlayerId);
         player.HasFolded = true;
 
+        Emit(newState, new ActivityEntry
+        {
+            EntryType = ActivityEntryType.PlayerAction,
+            PlayerId = requestingPlayer.PlayerId,
+            Action = PokerAction.Fold,
+            Amount = 0
+        });
+
         newState = AdvanceTurn(newState);
         newState = CompleteAction(newState);
 
@@ -75,6 +105,14 @@ public static class GameEngine
         var newState = state.Clone();
         var player = newState.Players.First(p => p.PlayerId == requestingPlayer.PlayerId);
         player.HasActedThisStreet = true;
+
+        Emit(newState, new ActivityEntry
+        {
+            EntryType = ActivityEntryType.PlayerAction,
+            PlayerId = requestingPlayer.PlayerId,
+            Action = PokerAction.Check,
+            Amount = 0
+        });
 
         newState = AdvanceTurn(newState);
         newState = CompleteAction(newState);
@@ -107,6 +145,14 @@ public static class GameEngine
 
         player.HasActedThisStreet = true;
 
+        Emit(newState, new ActivityEntry
+        {
+            EntryType = ActivityEntryType.PlayerAction,
+            PlayerId = requestingPlayer.PlayerId,
+            Action = PokerAction.Call,
+            Amount = amountToCall
+        });
+
         newState = AdvanceTurn(newState);
         newState = CompleteAction(newState);
 
@@ -136,6 +182,14 @@ public static class GameEngine
         player.HasActedThisStreet = true;
         if (player.Stack == 0)
             player.IsAllIn = true;
+
+        Emit(newState, new ActivityEntry
+        {
+            EntryType = ActivityEntryType.PlayerAction,
+            PlayerId = requestingPlayer.PlayerId,
+            Action = PokerAction.Bet,
+            Amount = amount
+        });
 
         ReopenAction(newState, player.PlayerId);
         newState = AdvanceTurn(newState);
@@ -169,6 +223,14 @@ public static class GameEngine
         if (player.Stack == 0)
             player.IsAllIn = true;
 
+        Emit(newState, new ActivityEntry
+        {
+            EntryType = ActivityEntryType.PlayerAction,
+            PlayerId = requestingPlayer.PlayerId,
+            Action = PokerAction.Raise,
+            Amount = totalRaiseAmount
+        });
+
         ReopenAction(newState, player.PlayerId);
         newState = AdvanceTurn(newState);
         newState = CompleteAction(newState);
@@ -193,6 +255,14 @@ public static class GameEngine
         CommitChips(newState, player, stackToCommit);
         player.IsAllIn = true;
         player.HasActedThisStreet = true;
+
+        Emit(newState, new ActivityEntry
+        {
+            EntryType = ActivityEntryType.PlayerAction,
+            PlayerId = requestingPlayer.PlayerId,
+            Action = PokerAction.AllIn,
+            Amount = stackToCommit
+        });
 
         if (isRaise)
         {
@@ -241,6 +311,7 @@ public static class GameEngine
     /// </summary>
     public static GameState AdvancePhase(GameState state)
     {
+        var oldPhase = state.Phase;
         state.Phase = state.Phase switch
         {
             GamePhase.PreFlop => GamePhase.Flop,
@@ -249,6 +320,13 @@ public static class GameEngine
             GamePhase.River => GamePhase.Showdown,
             _ => GamePhase.Showdown
         };
+
+        Emit(state, new ActivityEntry
+        {
+            EntryType = ActivityEntryType.PhaseAdvanced,
+            OldPhase = oldPhase,
+            NewPhase = state.Phase
+        });
 
         if (state.Phase == GamePhase.Showdown)
         {
@@ -296,7 +374,17 @@ public static class GameEngine
 
             var playersInHand = state.Players.Where(p => !p.HasFolded).ToList();
             if (playersInHand.Count == 1)
-                return ResolveShowdown(state, playersInHand[0].PlayerId);
+            {
+                var winner = playersInHand[0];
+                Emit(state, new ActivityEntry
+                {
+                    EntryType = ActivityEntryType.PotWon,
+                    PlayerId = winner.PlayerId,
+                    Amount = state.Pot,
+                    PotIndex = 0
+                });
+                return ResolveShowdown(state, winner.PlayerId);
+            }
 
             if (NoFurtherBettingPossible(state))
                 return EndHandAtShowdown(state);
@@ -444,7 +532,16 @@ public static class GameEngine
             var remainder = pot.Amount % winners.Count;
 
             foreach (var winner in winners)
+            {
                 winner.Stack += share;
+                Emit(state, new ActivityEntry
+                {
+                    EntryType = ActivityEntryType.PotWon,
+                    PlayerId = winner.PlayerId,
+                    Amount = share,
+                    PotIndex = i
+                });
+            }
 
             winners[0].Stack += remainder;
         }
@@ -487,6 +584,13 @@ public static class GameEngine
         bettor.CurrentBet -= excess;
         bettor.TotalContributed -= excess;
         state.Pot -= excess;
+
+        Emit(state, new ActivityEntry
+        {
+            EntryType = ActivityEntryType.Refund,
+            PlayerId = bettor.PlayerId,
+            Amount = excess
+        });
     }
 
     /// <summary>
@@ -526,9 +630,22 @@ public static class GameEngine
         if (winner == null)
             return state;
 
+        var potAmount = state.Pot;
         winner.Stack += state.Pot;
         state.Pot = 0;
         state.Pots = [];
+
+        if (potAmount > 0)
+        {
+            Emit(state, new ActivityEntry
+            {
+                EntryType = ActivityEntryType.PotWon,
+                PlayerId = winnerPlayerId,
+                Amount = potAmount,
+                PotIndex = 0
+            });
+        }
+
         EndHandBookkeeping(state);
 
         return state;
@@ -548,7 +665,16 @@ public static class GameEngine
         var remainder = state.Pot % activePlayers.Count;
 
         foreach (var p in activePlayers)
+        {
             p.Stack += share;
+            Emit(state, new ActivityEntry
+            {
+                EntryType = ActivityEntryType.PotWon,
+                PlayerId = p.PlayerId,
+                Amount = share,
+                PotIndex = 0
+            });
+        }
 
         // Remainder to lowest seat-index winner
         activePlayers[0].Stack += remainder;
@@ -630,6 +756,13 @@ public static class GameEngine
             state.DealerIndex = AdvanceToNextSeated(state, state.DealerIndex);
 
         state.IsHandActive = true;
+        state.HandNumber++;
+
+        Emit(state, new ActivityEntry
+        {
+            EntryType = ActivityEntryType.HandStarted
+        });
+
         PostBlinds(state);
     }
 
@@ -670,6 +803,13 @@ public static class GameEngine
         target.IsEliminated = false;
         target.HasFolded = false;
 
+        Emit(newState, new ActivityEntry
+        {
+            EntryType = ActivityEntryType.Rebuy,
+            PlayerId = playerId,
+            Amount = amount
+        });
+
         TryStartHand(newState);
 
         return Result<GameState>.Success(newState);
@@ -698,6 +838,12 @@ public static class GameEngine
         target.CurrentBet = 0;
         target.IsAllIn = false;
         target.IsDealer = false;
+
+        Emit(newState, new ActivityEntry
+        {
+            EntryType = ActivityEntryType.CashOut,
+            PlayerId = playerId
+        });
 
         TryStartHand(newState);
 
@@ -737,10 +883,26 @@ public static class GameEngine
         if (sbPlayer.Stack == 0)
             sbPlayer.IsAllIn = true;
 
+        Emit(state, new ActivityEntry
+        {
+            EntryType = ActivityEntryType.BlindPosted,
+            PlayerId = sbPlayer.PlayerId,
+            Amount = sbAmount,
+            BlindType = BlindType.SmallBlind
+        });
+
         var bbAmount = Math.Min(state.BigBlind, bbPlayer.Stack);
         CommitChips(state, bbPlayer, bbAmount);
         if (bbPlayer.Stack == 0)
             bbPlayer.IsAllIn = true;
+
+        Emit(state, new ActivityEntry
+        {
+            EntryType = ActivityEntryType.BlindPosted,
+            PlayerId = bbPlayer.PlayerId,
+            Amount = bbAmount,
+            BlindType = BlindType.BigBlind
+        });
 
         state.CurrentBet = bbPlayer.CurrentBet;
 
@@ -767,11 +929,17 @@ public static class GameEngine
             SmallBlind = smallBlind,
             BigBlind = bigBlind,
             MinRaise = bigBlind,
-            IsHandActive = true
+            IsHandActive = true,
+            HandNumber = 1
         };
 
         // Set dealer chip
         state.Players[dealerIndex].IsDealer = true;
+
+        Emit(state, new ActivityEntry
+        {
+            EntryType = ActivityEntryType.HandStarted
+        });
 
         PostBlinds(state);
 

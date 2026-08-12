@@ -58,6 +58,6 @@ public class ProcessActionCommandHandler : IRequestHandler<ProcessActionCommand,
         // Broadcast
         await _notifier.NotifyGameStateUpdated(request.RoomCode, room.CurrentState);
 
-        return new ProcessActionResult { Success = true, GameState = GameStateDto.MapFromDomain(room.CurrentState) };
+        return new ProcessActionResult { Success = true, GameState = GameStateDto.MapFromDomain(room) };
     }
 }

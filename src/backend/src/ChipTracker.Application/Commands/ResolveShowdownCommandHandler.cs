@@ -63,6 +63,6 @@ public class ResolveShowdownCommandHandler : IRequestHandler<ResolveShowdownComm
         await _roomRepository.SaveAsync(room, cancellationToken);
         await _notifier.NotifyGameStateUpdated(request.RoomCode, room.CurrentState);
 
-        return new ResolveShowdownResult { Success = true, GameState = GameStateDto.MapFromDomain(room.CurrentState) };
+        return new ResolveShowdownResult { Success = true, GameState = GameStateDto.MapFromDomain(room) };
     }
 }

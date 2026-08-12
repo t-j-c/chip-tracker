@@ -147,3 +147,19 @@ export async function cancelUndo(page: Page): Promise<void> {
   await page.locator('[data-testid="undo-cancel"]').click();
 }
 
+/** Open the activity history modal from the activity strip. */
+export async function openActivityHistory(page: Page): Promise<void> {
+  // The activity strip is a button with aria-label="Activity history"
+  const stripButton = page.locator('[data-testid="activity-strip"]');
+  await stripButton.click();
+  // Wait for modal to appear
+  await expect(page.getByRole('heading', { name: 'Activity History' })).toBeVisible({ timeout: 5_000 });
+}
+
+/** Get the text of the latest activity entry in the strip. */
+export async function getLatestActivity(page: Page): Promise<string> {
+  const activityText = page.locator('[data-testid="activity-strip-text"]');
+  const text = await activityText.textContent();
+  return text || '';
+}
+

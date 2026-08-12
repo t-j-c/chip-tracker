@@ -40,7 +40,7 @@ public class GetRoomQueryHandler : IRequestHandler<GetRoomQuery, GetRoomResult>
             CreatorPlayerId = room.CreatorPlayerId
         };
 
-        var gameState = room.CurrentState != null ? GameStateDto.MapFromDomain(room.CurrentState) : null;
+        var gameState = room.IsGameStarted ? GameStateDto.MapFromDomain(room) : null;
 
         return new GetRoomResult { Success = true, GameState = gameState, RoomInfo = roomInfo };
     }
