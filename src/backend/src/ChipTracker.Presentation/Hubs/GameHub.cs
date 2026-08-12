@@ -1,0 +1,353 @@
+using Microsoft.AspNetCore.SignalR;
+using MediatR;
+using ChipTracker.Application.Commands;
+using ChipTracker.Application.DTOs;
+using ChipTracker.Application.Queries;
+using ChipTracker.Domain.Enums;
+
+namespace ChipTracker.Presentation.Hubs;
+
+public interface IGameClient
+{
+    Task GameStateUpdated(object gameState);
+    Task UndoRequested(string requestingPlayerId);
+    Task UndoApproved(string approvingPlayerId);
+    Task UndoDeclined(string decliningPlayerId);
+    Task UndoCancelled(string cancellingPlayerId);
+    Task Error(string message);
+    Task PlayerJoined(PlayerDto player, int playerCount);
+    Task GameStarted(object gameState);
+}
+
+public class GameHub : Hub<IGameClient>
+{
+    private readonly IMediator _mediator;
+    private readonly ILogger<GameHub> _logger;
+
+    public GameHub(IMediator mediator, ILogger<GameHub> logger)
+    {
+        _mediator = mediator;
+        _logger = logger;
+    }
+
+    public override async Task OnConnectedAsync()
+    {
+        _logger.LogInformation("Client {ClientId} connected", Context.ConnectionId);
+        await base.OnConnectedAsync();
+    }
+
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        _logger.LogInformation("Client {ClientId} disconnected", Context.ConnectionId);
+        await base.OnDisconnectedAsync(exception);
+    }
+
+    public async Task JoinRoom(string roomCode, string playerId)
+    {
+        try
+        {
+            _logger.LogInformation("Player {PlayerId} joining room {RoomCode}", playerId, roomCode);
+
+            // Add client to SignalR group for this room
+            await Groups.AddToGroupAsync(Context.ConnectionId, roomCode);
+
+            // Fetch current game state
+            var query = new GetRoomQuery { RoomCode = roomCode };
+            var result = await _mediator.Send(query);
+
+            if (result.Success)
+            {
+                // Send initial game state to joining player
+                await Clients.Client(Context.ConnectionId).GameStateUpdated(result.GameState);
+            }
+            else
+            {
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to fetch room");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in JoinRoom");
+            await Clients.Client(Context.ConnectionId).Error($"Failed to join room: {ex.Message}");
+        }
+    }
+
+    public async Task SubmitAction(string roomCode, string playerId, string action, int? amount = null)
+    {
+        try
+        {
+            _logger.LogInformation("Player {PlayerId} in room {RoomCode} submitting action {Action} amount {Amount}",
+                playerId, roomCode, action, amount);
+
+            if (!Enum.TryParse<PokerAction>(action, ignoreCase: true, out var pokerAction))
+            {
+                await Clients.Client(Context.ConnectionId).Error($"Unknown action: {action}");
+                return;
+            }
+
+            var command = new ProcessActionCommand
+            {
+                RoomCode = roomCode,
+                PlayerId = playerId,
+                Action = pokerAction,
+                Amount = amount
+            };
+
+            var result = await _mediator.Send(command);
+
+            if (result.Success)
+            {
+                // Broadcast updated game state to all players in room
+                await Clients.Group(roomCode).GameStateUpdated(result.GameState);
+            }
+            else
+            {
+                // Send error to specific player
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to process action");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in SubmitAction");
+            await Clients.Client(Context.ConnectionId).Error($"Failed to submit action: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Sends an undo request to the other player. Does NOT modify state.
+    /// The other player must call ApproveUndo to actually revert.
+    /// </summary>
+    public async Task RequestUndo(string roomCode, string playerId)
+    {
+        try
+        {
+            _logger.LogInformation("Player {PlayerId} in room {RoomCode} requesting undo", playerId, roomCode);
+            var command = new RequestUndoCommand { RoomCode = roomCode, PlayerId = playerId };
+            var result = await _mediator.Send(command);
+
+            if (!result.Success)
+            {
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to request undo");
+                return;
+            }
+
+            await Clients.GroupExcept(roomCode, Context.ConnectionId).UndoRequested(playerId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in RequestUndo");
+            await Clients.Client(Context.ConnectionId).Error($"Failed to request undo: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Applies the undo (called by the player who received and approved the undo request).
+    /// </summary>
+    public async Task ApproveUndo(string roomCode, string approvingPlayerId)
+    {
+        try
+        {
+            _logger.LogInformation("Player {PlayerId} approved undo in room {RoomCode}", approvingPlayerId, roomCode);
+
+            var command = new UndoActionCommand
+            {
+                RoomCode = roomCode,
+                PlayerId = approvingPlayerId
+            };
+
+            var result = await _mediator.Send(command);
+
+            if (result.Success)
+            {
+                await Clients.Group(roomCode).GameStateUpdated(result.GameState!);
+            }
+            else
+            {
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to undo action");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in ApproveUndo");
+            await Clients.Client(Context.ConnectionId).Error($"Failed to approve undo: {ex.Message}");
+        }
+    }
+
+public async Task ResolveShowdown(string roomCode, string winnerPlayerId, bool isSplit = false)
+    {
+        try
+        {
+            _logger.LogInformation("Resolving showdown in room {RoomCode} winner {WinnerId} split {IsSplit}",
+                roomCode, winnerPlayerId, isSplit);
+
+            var command = new ResolveShowdownCommand
+            {
+                RoomCode = roomCode,
+                WinnerPlayerId = winnerPlayerId,
+                IsSplit = isSplit
+            };
+
+            var result = await _mediator.Send(command);
+
+            if (result.Success)
+            {
+                await Clients.Group(roomCode).GameStateUpdated(result.GameState!);
+            }
+            else
+            {
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to resolve showdown");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in ResolveShowdown");
+            await Clients.Client(Context.ConnectionId).Error($"Failed to resolve showdown: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Resolves a showdown with side pots: one winner-list per pot, matched by index against
+    /// the current state's Pots. Used instead of <see cref="ResolveShowdown"/> whenever the
+    /// hand produced more than one pot.
+    /// </summary>
+    public async Task ResolveShowdownWithAwards(string roomCode, List<PotAwardDto> awards)
+    {
+        try
+        {
+            _logger.LogInformation("Resolving multi-pot showdown in room {RoomCode} with {PotCount} pots",
+                roomCode, awards.Count);
+
+            var command = new ResolveShowdownCommand
+            {
+                RoomCode = roomCode,
+                Awards = [.. awards.Select(a => new ChipTracker.Domain.Entities.PotAward
+                {
+                    PotIndex = a.PotIndex,
+                    WinnerPlayerIds = a.WinnerPlayerIds
+                })]
+            };
+
+            var result = await _mediator.Send(command);
+
+            if (result.Success)
+            {
+                await Clients.Group(roomCode).GameStateUpdated(result.GameState!);
+            }
+            else
+            {
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to resolve showdown");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in ResolveShowdownWithAwards");
+            await Clients.Client(Context.ConnectionId).Error($"Failed to resolve showdown: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Notifies the room that an undo request was declined by the other player.
+    /// No state change — just broadcasts the decline so the requester can be informed.
+    /// </summary>
+    public async Task DeclineUndo(string roomCode, string decliningPlayerId)
+    {
+        try
+        {
+            _logger.LogInformation("Player {PlayerId} declined undo in room {RoomCode}", decliningPlayerId, roomCode);
+
+            var command = new ClearUndoRequestCommand { RoomCode = roomCode, PlayerId = decliningPlayerId, IsCancel = false };
+            var result = await _mediator.Send(command);
+
+            if (!result.Success)
+            {
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to decline undo");
+                return;
+            }
+
+            await Clients.GroupExcept(roomCode, Context.ConnectionId).UndoDeclined(decliningPlayerId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in DeclineUndo");
+            await Clients.Client(Context.ConnectionId).Error($"Failed to decline undo: {ex.Message}");
+        }
+    }
+
+    public async Task CancelUndo(string roomCode, string playerId)
+    {
+        try
+        {
+            _logger.LogInformation("Player {PlayerId} cancelled undo in room {RoomCode}", playerId, roomCode);
+
+            var command = new ClearUndoRequestCommand { RoomCode = roomCode, PlayerId = playerId, IsCancel = true };
+            var result = await _mediator.Send(command);
+
+            if (!result.Success)
+            {
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to cancel undo");
+                return;
+            }
+
+            await Clients.GroupExcept(roomCode, Context.ConnectionId).UndoCancelled(playerId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in CancelUndo");
+            await Clients.Client(Context.ConnectionId).Error($"Failed to cancel undo: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Buys a busted (or previously eliminated) player back in for the room's starting stack.
+    /// </summary>
+    public async Task Rebuy(string roomCode, string playerId)
+    {
+        try
+        {
+            _logger.LogInformation("Player {PlayerId} rebuying in room {RoomCode}", playerId, roomCode);
+
+            var result = await _mediator.Send(new RebuyCommand { RoomCode = roomCode, PlayerId = playerId });
+
+            if (result.Success)
+            {
+                await Clients.Group(roomCode).GameStateUpdated(result.GameState!);
+            }
+            else
+            {
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to rebuy");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in Rebuy");
+            await Clients.Client(Context.ConnectionId).Error($"Failed to rebuy: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Cashes a busted player out instead of rebuying, marking them eliminated.
+    /// </summary>
+    public async Task DeclineRebuy(string roomCode, string playerId)
+    {
+        try
+        {
+            _logger.LogInformation("Player {PlayerId} declining rebuy in room {RoomCode}", playerId, roomCode);
+
+            var result = await _mediator.Send(new DeclineRebuyCommand { RoomCode = roomCode, PlayerId = playerId });
+
+            if (result.Success)
+            {
+                await Clients.Group(roomCode).GameStateUpdated(result.GameState!);
+            }
+            else
+            {
+                await Clients.Client(Context.ConnectionId).Error(result.Error ?? "Failed to cash out");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in DeclineRebuy");
+            await Clients.Client(Context.ConnectionId).Error($"Failed to cash out: {ex.Message}");
+        }
+    }
+}

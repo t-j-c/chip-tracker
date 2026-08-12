@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # Backend service
+  backend:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+    container_name: chip-tracker-backend
+    ports:
+      - "5000:5000"
+      - "5001:5001"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5000
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=local
+      - AWS_SECRET_ACCESS_KEY=local
+      - DynamoDB__UseLocal=true
+      - DynamoDB__ServiceUrl=http://dynamodb-local:8000
+      - DynamoDB__TableName=ChipTracker_Rooms
+    depends_on:
+      - dynamodb-local
+    networks:
+      - chip-tracker-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Frontend service
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+    container_name: chip-tracker-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - chip-tracker-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # DynamoDB Local for development (optional)
+  dynamodb-local:
+    image: amazon/dynamodb-local:2.0.0
+    container_name: chip-tracker-dynamodb
+    ports:
+      - "8000:8000"
+    networks:
+      - chip-tracker-network
+    command: -jar DynamoDBLocal.jar -sharedDb -inMemory
+
+networks:
+  chip-tracker-network:
+    driver: bridge
