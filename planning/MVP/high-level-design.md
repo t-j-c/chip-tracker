@@ -4,16 +4,16 @@
 
 We will use **Clean Architecture** to ensure the Domain (poker rules, state, math) has zero dependencies on the infrastructure (network, web server). We will employ **Domain-Driven Design (DDD)** to model the strict rules of heads-up poker.
 
-### 1.1 Tech Stack (Local MVP)
+### 1.1 Tech Stack (as built)
 
-* **Backend:** .NET 8 (or 9) C# ASP.NET Core.
+* **Backend:** .NET 10 C# ASP.NET Core (Clean Architecture, MediatR).
 * **Real-time Communication:** SignalR (WebSockets).
-* **Frontend:** Blazor WebAssembly (or a lightweight React/Vue SPA) hosted by the .NET server. *Using Blazor keeps the entire codebase in C#, which accelerates agent-driven development.*
-* **Persistence:** In-Memory Singleton Repository (no database required for MVP).
+* **Frontend:** React + Vite SPA (Zustand, Tailwind). It is served as static files, by nginx locally and by S3 + CloudFront in production, on the same origin as the API.
+* **Persistence:** DynamoDB, with DynamoDB Local for development. The original plan was in-memory; see [detailed-design-2.md](./detailed-design-2.md) decisions.
 
-### 1.2 Cloud-Native Pathway
+### 1.2 Cloud Deployment
 
-By isolating the `Game` aggregate root, moving to the cloud later only requires swapping the in-memory repository for Redis/PostgreSQL and deploying the .NET server to a cloud provider (e.g., Azure App Service).
+The MVP is deployed publicly on AWS: one small EC2 instance running the backend container, behind CloudFront, with S3 for the SPA and DynamoDB for state, on our Route 53 domain. See [deployment-plan.md](./deployment-plan.md). Because SignalR groups are held in memory, the backend runs as a **single instance**. Scaling out later requires a SignalR backplane (e.g., Redis) or sticky sessions.
 
 ---
 
@@ -66,10 +66,10 @@ Because state must perfectly sync across two devices without polling, SignalR is
 * **`GameHub`:** Both players connect to this hub and join a SignalR Group based on the `GameId`.
 * Whenever the Application layer successfully processes a command (e.g., `SubmitActionCommand`), the Hub broadcasts a `GameStateUpdated` event containing the latest DTO to the Group. The UI simply acts as a dumb renderer of this state.
 
-### 4.2 Local Network Discovery
+### 4.2 Joining a Game
 
-* **Primary (Auto):** Implement basic UDP broadcasting or mDNS (Zeroconf) in the background service to announce the server's local IP address.
-* **Fallback (Manual):** The host UI displays a large QR code containing the local network URL (e.g., `[http://192.168.1.50:5000/join/game123](http://192.168.1.50:5000/join/game123)`) that the joiner scans with their phone camera to instantly connect.
+* **QR code / link (implemented):** The host UI displays a QR code with the public join URL (e.g., `https://<domain>/join?room=ABC123`). The joiner scans it with their phone camera, or enters the 6-character room code manually.
+* **~~Local network discovery (UDP/mDNS)~~:** Dropped. QR join is sufficient (see [detailed-design-2.md](./detailed-design-2.md)), and discovery is irrelevant now that the app is publicly hosted.
 
 ---
 

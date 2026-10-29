@@ -22,7 +22,7 @@ ChipTrack (working title) is a lightweight utility application designed to repla
 
 **The Audience:** Casual poker players and friends hanging out in person (initially targeting 2-player, heads-up scenarios).
 
-**The Solution:** A synchronized, zero-setup mobile interface that tracks stacks, manages the pot, enforces rules, and rotates dealer buttons over a local network.
+**The Solution:** A synchronized, zero-setup mobile web app that tracks stacks, manages the pot, enforces rules, and rotates dealer buttons. Players join a shared game by scanning a QR code or entering a room code.
 
 
 
@@ -36,7 +36,7 @@ To validate the core loop with minimal engineering effort, the MVP is strictly b
 
 * **Two Players Only (Heads-Up):** Eliminates complex side-pot logic and multi-way action edge cases.
 
-* **Local Network Only:** Players must be on the same WiFi/network. This defers the cost and complexity of cloud infrastructure, user authentication, and web-based link sharing.
+* **Publicly Hosted, No Accounts:** The app is a public HTTPS web app on a single URL; players do not need to be on the same network. There is no user authentication: the room code is the only access control. Hosting is kept to a single low-cost instance (see [deployment-plan.md](./deployment-plan.md)). *(Revised: the original MVP was "Local Network Only".)*
 
 * **No Card Mechanics:** The app remains completely agnostic to the physical cards. It is purely an accounting and state-management tool.
 
@@ -52,7 +52,7 @@ To validate the core loop with minimal engineering effort, the MVP is strictly b
 
 * **Player A (Host):** Opens the app, taps "Host Game," and inputs the starting parameters (Starting Stack size, Small Blind, Big Blind).
 
-* **Player B (Joiner):** Opens the app, taps "Join Game," and selects Player A's locally broadcasted game.
+* **Player B (Joiner):** Opens the app and scans Player A's QR code (or taps "Join Game" and enters the room code).
 
 * **Outcome:** Both devices lock into the same synchronized game state, ready for Hand 1.
 
@@ -92,7 +92,7 @@ To validate the core loop with minimal engineering effort, the MVP is strictly b
 
 | Feature Category | Business Requirement |
 | --- | --- |
-| **Connectivity** | Local network discovery (auto-detect host on the same WiFi). No account creation required. |
+| **Connectivity** | Public HTTPS web app; join via QR code/link or room code. No account creation required. |
 | **Game Setup** | Configurable Starting Stacks, Small Blind, and Big Blind amounts prior to launch. |
 | **State Management** | Automatic tracking of total pot, current bet to call, individual chip stacks, and dealer position. |
 | **Heads-Up Logic** | Strict adherence to heads-up poker rules (Dealer = Small Blind, acts first pre-flop, last post-flop). |
@@ -109,7 +109,7 @@ To validate the core loop with minimal engineering effort, the MVP is strictly b
 
 
 
-* Online multiplayer via the internet or shareable invite links.
+* User accounts / authentication. *(Internet play via shareable links, undo, and an in-game activity history were originally listed here but are now part of the MVP.)*
 
 * Games with 3 or more players.
 
@@ -117,7 +117,7 @@ To validate the core loop with minimal engineering effort, the MVP is strictly b
 
 * Blind schedules (e.g., blinds increasing every 15 minutes for tournament play).
 
-* Hand history logs and undo functionality.
+* Hand history export.
 
 * Custom avatars, profiles, or leaderboards.
 
@@ -135,4 +135,4 @@ For the MVP, we will measure product-market fit and usability through:
 
 2. **Session Length:** Average time spent in an active game state.
 
-3. **Fatal Errors:** Rate of games abandoned due to desync issues on the local network.
+3. **Fatal Errors:** Rate of games abandoned due to desync or connection issues.

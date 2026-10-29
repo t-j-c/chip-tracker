@@ -137,7 +137,9 @@ Playwright with two browser contexts:
 
 ### Phase 8: AWS CDK Infrastructure *(parallel with 2-6)*
 
-CDK stack (`infra/lib/chip-tracker-stack.ts`):
+> **Superseded by [deployment-plan.md](./deployment-plan.md).** The ECS Fargate + ALB + NAT design below was built (`infra/src/stack.ts`) but never deployed. It costs about $60–150+/mo and has functional bugs: SignalR is not forwarded correctly through CloudFront, and SPA/API 404 handling is broken. It is being replaced with a single EC2 `t4g.nano` behind CloudFront + S3 + DynamoDB, about $8/mo.
+
+Original CDK stack (`infra/src/stack.ts`):
 - DynamoDB table (PAY_PER_REQUEST)
 - ECR repo
 - ECS Cluster + Fargate service behind ALB
@@ -150,6 +152,8 @@ CDK stack (`infra/lib/chip-tracker-stack.ts`):
 
 ### Phase 9: CI/CD GitHub Actions *(depends on 8)*
 
+> **Superseded by [deployment-plan.md](./deployment-plan.md) Phase 3.** `cd.yml` and `infra-cd.yml` will be consolidated into a single `deploy.yml`: infra → backend via SSM → frontend to S3 → smoke test.
+
 - **backend.yml**: trigger `src/backend/**`, build, test (DynamoDB Local service container), docker push ECR, deploy ECS
 - **frontend.yml**: trigger `src/frontend/**`, install, lint, test, build, sync S3, CloudFront invalidation
 - **infra.yml**: trigger `infra/**`, `cdk diff` on PR, `cdk deploy` on merge
@@ -161,7 +165,7 @@ CDK stack (`infra/lib/chip-tracker-stack.ts`):
 ### Excluded from MVP
 - Split pots / side pots (heads-up only, no multi-way)
 - Player authentication (trust-based, player selects identity)
-- Custom domain / SSL (CloudFront default)
+- ~~Custom domain / SSL (CloudFront default)~~: now in scope (Route 53 domain + ACM). See [deployment-plan.md](./deployment-plan.md).
 - Multiple games per room, spectator mode, chat, hand history export
 
 ---
@@ -175,6 +179,6 @@ CDK stack (`infra/lib/chip-tracker-stack.ts`):
 | Infrastructure | `src/backend/src/ChipTracker.Infrastructure/Persistence/DynamoDbRoomRepository.cs` |
 | Presentation | `src/backend/src/ChipTracker.Presentation/Hubs/GameHub.cs`, `Endpoints/RoomEndpoints.cs`, `Program.cs`, `Dockerfile` |
 | Frontend | `src/frontend/src/hooks/useSignalR.ts`, `stores/gameStore.ts`, `pages/`, `components/` |
-| DevOps | `docker-compose.yml`, `scripts/init-dynamodb.*`, `infra/lib/chip-tracker-stack.ts`, `.github/workflows/` |
+| DevOps | `docker-compose.yml`, `scripts/init-dynamodb.*`, `infra/src/stack.ts`, `.github/workflows/` (see [deployment-plan.md](./deployment-plan.md)) |
 
 ---
