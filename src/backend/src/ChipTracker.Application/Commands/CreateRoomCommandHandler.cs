@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using ChipTracker.Application.Interfaces;
 using ChipTracker.Domain.Entities;
 using MediatR;
@@ -36,18 +37,23 @@ public class CreateRoomCommandHandler : IRequestHandler<CreateRoomCommand, Creat
             LastUpdatedAt = DateTime.UtcNow
         };
 
-        var roomCode = await _roomRepository.CreateAsync(room, cancellationToken);
+        var roomCode = string.Empty;
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            room.RoomCode = GenerateRoomCode();
+            if (await _roomRepository.TryCreateAsync(room, cancellationToken))
+            {
+                roomCode = room.RoomCode;
+                break;
+            }
+        }
+
+        if (roomCode.Length == 0)
+            return new CreateRoomResult { Success = false, Error = "Could not allocate a room code, please try again" };
 
         return new CreateRoomResult { Success = true, RoomCode = roomCode };
     }
 
-    private static string GenerateRoomCode()
-    {
-        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        var result = new char[6];
-        var random = new Random();
-        for (int i = 0; i < 6; i++)
-            result[i] = chars[random.Next(chars.Length)];
-        return new string(result);
-    }
+    private static string GenerateRoomCode() =>
+        RandomNumberGenerator.GetString("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 6);
 }

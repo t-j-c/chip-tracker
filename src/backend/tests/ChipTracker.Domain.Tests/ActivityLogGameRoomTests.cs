@@ -108,37 +108,85 @@ public class ActivityLogGameRoomTests
         room.ActivityLog.First().Sequence.Should().Be(2, "Oldest entry (seq 1) should be removed");
     }
 
-    [Fact]
-    public void IsUndone_MarkedTrueForEntriesBeyondCurrentStateHistoryLength()
+    private static GameRoom RoomWithHands(int pushes)
     {
         var room = new GameRoom { GameState = GameEngine.CreateInitialState(TwoPlayers(), smallBlind: 10, bigBlind: 20, dealerIndex: 0) };
         room.PushState();
+        for (var i = 0; i < pushes; i++)
+        {
+            var next = room.CurrentState!.Clone();
+            next.Pot += 1;
+            next.PendingLog.Add(new ActivityEntry { EntryType = ActivityEntryType.PlayerAction, PlayerId = "p1", Action = PokerAction.Call });
+            room.PushState(next);
+        }
+        return room;
+    }
 
-        // Perform an action to create more activity entries
-        var state = GameEngine.ValidateAction(room.GameState, Action("p1", PokerAction.Call)).Value!;
-        room.PushState(state);
+    [Fact]
+    public void Undo_MarksOnlyEntriesOfTheUndoneState()
+    {
+        var room = RoomWithHands(2);
+        var restoredVersion = room.StateHistory[^1].StateVersion;
 
-        var totalEntriesBefore = room.ActivityLog.Count;
-        var stateHistoryCountBefore = room.StateHistory.Count;
+        room.UndoLastAction().Should().BeTrue();
 
-        // Record the indices of entries created in the last push (they have a higher StateVersion)
-        var entriesAfterLastPush = room.ActivityLog
-            .Where(e => e.StateVersion > stateHistoryCountBefore)
-            .ToList();
-        entriesAfterLastPush.Should().NotBeEmpty("Should have entries from the last action");
+        room.CurrentState!.StateVersion.Should().Be(restoredVersion);
+        room.ActivityLog.Where(e => e.IsUndone).Should().ContainSingle();
+        room.ActivityLog.Where(e => e.StateVersion <= restoredVersion)
+            .Should().AllSatisfy(e => e.IsUndone.Should().BeFalse());
+    }
 
-        // All current entries should not be marked as undone yet
-        room.ActivityLog.Should().AllSatisfy(e => e.IsUndone.Should().BeFalse("Fresh entries should not be marked as undone"));
+    [Fact]
+    public void Undo_ThenNewAction_ThenUndo_KeepsVersionsUnique()
+    {
+        var room = RoomWithHands(2);
+        room.UndoLastAction().Should().BeTrue();
 
-        // Perform undo
-        var undoSuccess = room.UndoLastAction();
-        undoSuccess.Should().BeTrue("Undo should succeed");
+        var next = room.CurrentState!.Clone();
+        next.PendingLog.Add(new ActivityEntry { EntryType = ActivityEntryType.PlayerAction, PlayerId = "p2", Action = PokerAction.Check });
+        room.PushState(next);
+        room.UndoLastAction().Should().BeTrue();
 
-        // After undo, entries that were created in the undone state should be marked as undone
-        var stateHistoryCountAfter = room.StateHistory.Count;
-        var undoneEntries = room.ActivityLog.Where(e => e.StateVersion > stateHistoryCountAfter).ToList();
-        
-        undoneEntries.Should().NotBeEmpty("Should have undone entries");
-        undoneEntries.Should().AllSatisfy(e => e.IsUndone.Should().BeTrue("Entries from undone state should be marked IsUndone=true"));
+        room.ActivityLog.Where(e => e.IsUndone).Should().HaveCount(2);
+        room.ActivityLog.Where(e => !e.IsUndone).Should().AllSatisfy(e => e.StateVersion.Should().BeLessThanOrEqualTo(room.CurrentState!.StateVersion));
+    }
+
+    [Fact]
+    public void History_IsCappedAndUndoStillWorksAfterTrimming()
+    {
+        var room = RoomWithHands(100);
+
+        room.StateHistory.Should().HaveCount(GameRoom.MaxUndoHistory);
+
+        for (var i = 0; i < GameRoom.MaxUndoHistory; i++)
+            room.UndoLastAction().Should().BeTrue();
+        room.UndoLastAction().Should().BeFalse();
+        room.ActivityLog.Count(e => e.IsUndone).Should().Be(GameRoom.MaxUndoHistory);
+    }
+
+    [Fact]
+    public void EnsureStateVersions_BackfillsLegacyRooms()
+    {
+        var room = new GameRoom
+        {
+            CurrentState = new GameState(),
+            StateHistory = [new GameState(), new GameState()],
+            ActivityLog = [new ActivityEntry { StateVersion = 3 }]
+        };
+
+        room.EnsureStateVersions();
+
+        room.StateHistory.Select(s => s.StateVersion).Should().Equal(1, 2);
+        room.CurrentState!.StateVersion.Should().Be(3);
+        room.LatestStateVersion.Should().Be(3);
+    }
+
+    [Fact]
+    public void Serialization_DoesNotDuplicateCurrentState()
+    {
+        var room = RoomWithHands(1);
+        var json = System.Text.Json.JsonSerializer.Serialize(room);
+        json.Should().NotContain("\"GameState\":");
+        json.Should().NotContain("\"IsGameStarted\"");
     }
 }

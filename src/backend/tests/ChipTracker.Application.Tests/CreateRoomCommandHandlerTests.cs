@@ -13,9 +13,33 @@ public class CreateRoomCommandHandlerTests
 
     public CreateRoomCommandHandlerTests()
     {
-        _repo.CreateAsync(Arg.Any<GameRoom>(), Arg.Any<CancellationToken>())
-             .Returns(call => call.Arg<GameRoom>().RoomCode);
+        _repo.TryCreateAsync(Arg.Any<GameRoom>(), Arg.Any<CancellationToken>()).Returns(true);
         _handler = new CreateRoomCommandHandler(_repo);
+    }
+
+    [Fact]
+    public async Task Handle_CodeCollision_RetriesWithNewCode()
+    {
+        var codes = new List<string>();
+        _repo.TryCreateAsync(Arg.Do<GameRoom>(r => codes.Add(r.RoomCode)), Arg.Any<CancellationToken>())
+             .Returns(false, true);
+
+        var result = await _handler.Handle(new CreateRoomCommand { StartingStack = 1000, SmallBlind = 10, BigBlind = 20 }, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        codes.Should().HaveCount(2);
+        result.RoomCode.Should().Be(codes[1]);
+    }
+
+    [Fact]
+    public async Task Handle_CodeAlwaysCollides_ReturnsError()
+    {
+        _repo.TryCreateAsync(Arg.Any<GameRoom>(), Arg.Any<CancellationToken>()).Returns(false);
+
+        var result = await _handler.Handle(new CreateRoomCommand { StartingStack = 1000, SmallBlind = 10, BigBlind = 20 }, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        await _repo.Received(5).TryCreateAsync(Arg.Any<GameRoom>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -33,8 +57,8 @@ public class CreateRoomCommandHandlerTests
     public async Task Handle_ValidCommand_RoomHasNoPlayersAndNoGameState()
     {
         GameRoom? capturedRoom = null;
-        _repo.CreateAsync(Arg.Do<GameRoom>(r => capturedRoom = r), Arg.Any<CancellationToken>())
-             .Returns(call => call.Arg<GameRoom>().RoomCode);
+        _repo.TryCreateAsync(Arg.Do<GameRoom>(r => capturedRoom = r), Arg.Any<CancellationToken>())
+             .Returns(true);
 
         var command = new CreateRoomCommand { StartingStack = 500, SmallBlind = 5, BigBlind = 10 };
         await _handler.Handle(command, CancellationToken.None);

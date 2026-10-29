@@ -47,8 +47,8 @@ public class ActivityEntry
     public GamePhase? NewPhase { get; set; }
 
     /// <summary>
-    /// The state version (StateHistory.Count) when this entry was drained and stamped.
-    /// Used to support undo: entries with StateVersion > current StateHistory.Count are marked IsUndone.
+    /// The GameState.StateVersion of the state this entry was drained from.
+    /// Used to support undo: entries with StateVersion greater than the restored state's version are marked IsUndone.
     /// </summary>
     public int StateVersion { get; set; }
 

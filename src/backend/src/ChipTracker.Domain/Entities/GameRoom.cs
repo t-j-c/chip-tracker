@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace ChipTracker.Domain.Entities;
 
 public class GameRoom
@@ -8,12 +10,19 @@ public class GameRoom
     /// <summary>
     /// Alias for CurrentState (used in tests and for consistency).
     /// </summary>
+    [JsonIgnore]
     public GameState? GameState
     {
         get => CurrentState;
         set => CurrentState = value;
     }
     public List<GameState> StateHistory { get; set; } = [];
+
+    /// <summary>Maximum number of undo states kept; keeps the persisted item well under DynamoDB's 400 KB cap.</summary>
+    public const int MaxUndoHistory = 20;
+
+    /// <summary>Highest GameState.StateVersion ever assigned in this room. Never decreases.</summary>
+    public int LatestStateVersion { get; set; }
     public string? PendingUndoRequestBy { get; set; }
     public DateTime? UndoRequestedAt { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -37,17 +46,44 @@ public class GameRoom
         set => _nextActivitySequence = value;
     }
 
+    [JsonIgnore]
     public bool IsGameStarted => CurrentState != null;
+
+    /// <summary>
+    /// Backfills state versions on rooms persisted before StateVersion existed
+    /// (those stamped entries with StateHistory.Count + 1).
+    /// </summary>
+    public void EnsureStateVersions()
+    {
+        if (CurrentState == null || CurrentState.StateVersion != 0)
+            return;
+
+        for (var i = 0; i < StateHistory.Count; i++)
+            StateHistory[i].StateVersion = i + 1;
+        CurrentState.StateVersion = StateHistory.Count + 1;
+        LatestStateVersion = Math.Max(
+            Math.Max(LatestStateVersion, CurrentState.StateVersion),
+            ActivityLog.Count == 0 ? 0 : ActivityLog.Max(e => e.StateVersion));
+    }
+
+    /// <summary>Drops the oldest undo states so at most <paramref name="keep"/> remain.</summary>
+    public void TrimHistory(int keep)
+    {
+        if (StateHistory.Count > keep)
+            StateHistory.RemoveRange(0, StateHistory.Count - keep);
+    }
 
     /// <summary>
     /// Pushes the current state to history and replaces with new state.
     /// </summary>
     public void PushState(GameState newState)
     {
+        EnsureStateVersions();
         if (CurrentState != null)
             StateHistory.Add(CurrentState.Clone());
+        TrimHistory(MaxUndoHistory);
+        newState.StateVersion = ++LatestStateVersion;
         CurrentState = newState;
-        GameState = newState;  // Keep alias in sync
         DrainActivityLog();
         ClearPendingUndo();
         LastUpdatedAt = DateTime.UtcNow;
@@ -62,6 +98,7 @@ public class GameRoom
         if (CurrentState == null)
             return;
         
+        EnsureStateVersions();
         DrainActivityLog();
         LastUpdatedAt = DateTime.UtcNow;
     }
@@ -75,7 +112,9 @@ public class GameRoom
         if (CurrentState?.PendingLog == null || CurrentState.PendingLog.Count == 0)
             return;
 
-        var stateVersion = StateHistory.Count + 1;  // +1 for current state
+        if (CurrentState.StateVersion == 0)
+            CurrentState.StateVersion = ++LatestStateVersion;
+        var stateVersion = CurrentState.StateVersion;
 
         foreach (var entry in CurrentState.PendingLog)
         {
@@ -101,16 +140,17 @@ public class GameRoom
     /// </summary>
     public bool UndoLastAction()
     {
+        EnsureStateVersions();
         if (StateHistory.Count == 0)
             return false;
 
         CurrentState = StateHistory[^1];
         StateHistory.RemoveAt(StateHistory.Count - 1);
         
-        // Mark activity entries as undone if they were created in the popped state
+        // Mark activity entries created after the restored state as undone
         foreach (var entry in ActivityLog)
         {
-            if (entry.StateVersion > StateHistory.Count)
+            if (entry.StateVersion > CurrentState.StateVersion)
             {
                 entry.IsUndone = true;
             }

@@ -19,16 +19,15 @@ services:
       - DynamoDB__UseLocal=true
       - DynamoDB__ServiceUrl=http://dynamodb-local:8000
       - DynamoDB__TableName=ChipTracker_Rooms
+      # Generous limits so the serial e2e suite (one IP, many rooms) isn't throttled
+      - RateLimiting__CreateRoomPerMinute=10000
+      - RateLimiting__JoinPerMinute=10000
+      - RateLimiting__ReadPerMinute=10000
+      - RateLimiting__HubConnectPerMinute=10000
     depends_on:
       - dynamodb-local
     networks:
       - chip-tracker-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
   # Frontend service
   frontend:

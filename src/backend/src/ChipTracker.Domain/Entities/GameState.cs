@@ -41,6 +41,12 @@ public class GameState
     public int HandNumber { get; set; } = 0;
 
     /// <summary>
+    /// Monotonic version assigned by GameRoom.PushState. Never reused, so it stays
+    /// meaningful after undo history is trimmed. 0 means "not yet assigned".
+    /// </summary>
+    public int StateVersion { get; set; }
+
+    /// <summary>
     /// Creates a deep copy of this game state.
     /// </summary>
     public GameState Clone()
@@ -60,7 +66,8 @@ public class GameState
             StreetFirstActorId = StreetFirstActorId,
             Pots = Pots.Select(p => p.Clone()).ToList(),
             PendingLog = PendingLog.Select(e => e.Clone()).ToList(),
-            HandNumber = HandNumber
+            HandNumber = HandNumber,
+            StateVersion = StateVersion
         };
     }
 }

@@ -18,7 +18,8 @@ public interface IRoomRepository
     Task SaveAsync(GameRoom room, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Creates a new room and returns its generated room code.
+    /// Creates a new room only if its code is not already in use.
+    /// Returns false when the code is taken.
     /// </summary>
-    Task<string> CreateAsync(GameRoom room, CancellationToken cancellationToken = default);
+    Task<bool> TryCreateAsync(GameRoom room, CancellationToken cancellationToken = default);
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Copy, Check, Share2, Crown } from 'lucide-react';
@@ -24,7 +24,9 @@ export default function LobbyPage() {
     setRoomSettings,
     setError,
   } = useGameStore();
-  const { joinRoom } = useSignalR();
+  const loadRoomRef = useRef<() => Promise<void>>(async () => {});
+  // After a reconnect, refetch the roster to pick up PlayerJoined events missed while offline
+  const { joinRoom } = useSignalR({ onRejoined: () => void loadRoomRef.current() });
 
   const [playerName, setPlayerName] = useState('');
   const [joining, setJoining] = useState(false);
@@ -59,6 +61,10 @@ export default function LobbyPage() {
       // Non-fatal: lobby will still work via SignalR
     }
   }, [roomCode, apiUrl, setLobbyPlayers, setRoomSettings, navigate]);
+
+  useEffect(() => {
+    loadRoomRef.current = loadRoom;
+  }, [loadRoom]);
 
   useEffect(() => {
     if (roomCode) {

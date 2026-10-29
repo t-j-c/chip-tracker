@@ -4,6 +4,7 @@ using ChipTracker.Application.Interfaces;
 using ChipTracker.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace ChipTracker.Infrastructure;
 
@@ -27,8 +28,11 @@ public static class DependencyInjection
             services.AddSingleton<IAmazonDynamoDB>(new AmazonDynamoDBClient());
         }
 
+        var roomTtlDays = configuration.GetValue("DynamoDB:RoomTtlDays", 1);
+
         services.AddScoped<IRoomRepository>(sp =>
-            new DynamoDbRoomRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+            new DynamoDbRoomRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName, roomTtlDays,
+                sp.GetRequiredService<ILoggerFactory>().CreateLogger<DynamoDbRoomRepository>()));
 
         return services;
     }
