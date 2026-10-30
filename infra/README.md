@@ -84,7 +84,8 @@ Stack outputs: `SiteUrl`, `DistributionId`, `FrontendBucketName`, `ApiFunctionNa
 See [deployment plan Phase 4](../planning/MVP/deployment-plan.md):
 
 1. `npx cdk bootstrap aws://<account>/us-east-1`.
-2. `npx cdk deploy --app "npx ts-node src/oidc-app.ts" -c githubRepo=t-j-c/chip-tracker`. If the account already has a GitHub OIDC provider (`aws iam list-open-id-connect-providers`), add `-c oidcProviderArn=<that arn>` to reuse it.
+2. `npx cdk deploy --app "npx ts-node src/oidc-app.ts" -c githubRepo=t-j-c/chip-tracker -c subClaimPrefix=repo:t-j-c@16748068/chip-tracker@1310325399`. If the account already has a GitHub OIDC provider (`aws iam list-open-id-connect-providers`), add `-c oidcProviderArn=<that arn>` to reuse it.
+   - `subClaimPrefix` is required because this repo uses GitHub's immutable OIDC subject claims (`repo:<owner>@<ownerId>/<repo>@<repoId>`). Without it the role trusts the legacy `repo:t-j-c/chip-tracker` subject and `configure-aws-credentials` fails with `Not authorized to perform sts:AssumeRoleWithWebIdentity`. Get the value from `gh api repos/t-j-c/chip-tracker/actions/oidc/customization/sub` (`sub_claim_prefix`).
 3. Put the `DeployRoleArn` output into the GitHub secret `AWS_ROLE_TO_ASSUME`.
 4. Create the GitHub environment `production` and the variables `AWS_REGION`, `SITE_DOMAIN`, `ALERT_EMAIL`.
 5. The first deploy waits for ACM DNS validation, about 5–30 min.

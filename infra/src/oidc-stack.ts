@@ -10,6 +10,13 @@ export interface GitHubOidcStackProps extends cdk.StackProps {
    * so reuse it when another stack already created it.
    */
   existingProviderArn?: string;
+  /**
+   * Prefix of the OIDC token `sub` claim. Defaults to the legacy `repo:<owner>/<repo>` format.
+   * Repositories that use immutable subject claims (the default for repos created after
+   * 2026-07-15) need `repo:<owner>@<ownerId>/<repo>@<repoId>`; read it from
+   * `gh api repos/<owner>/<repo>/actions/oidc/customization/sub` (`sub_claim_prefix`).
+   */
+  subClaimPrefix?: string;
 }
 
 /**
@@ -26,6 +33,7 @@ export class GitHubOidcStack extends cdk.Stack {
     super(scope, id, props);
 
     const { githubRepo, existingProviderArn } = props;
+    const subPrefix = props.subClaimPrefix || `repo:${githubRepo}`;
 
     const provider = existingProviderArn
       ? iam.OpenIdConnectProvider.fromOpenIdConnectProviderArn(this, 'GitHubOidcProvider', existingProviderArn)
@@ -46,9 +54,9 @@ export class GitHubOidcStack extends cdk.Stack {
           },
           StringLike: {
             'token.actions.githubusercontent.com:sub': [
-              `repo:${githubRepo}:ref:refs/heads/main`,
-              `repo:${githubRepo}:pull_request`,
-              `repo:${githubRepo}:environment:production`,
+              `${subPrefix}:ref:refs/heads/main`,
+              `${subPrefix}:pull_request`,
+              `${subPrefix}:environment:production`,
             ],
           },
         },
