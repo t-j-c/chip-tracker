@@ -9,12 +9,12 @@ namespace ChipTracker.Application.Commands;
 public class ProcessActionCommandHandler : IRequestHandler<ProcessActionCommand, ProcessActionResult>
 {
     private readonly IRoomRepository _roomRepository;
-    private readonly IGameNotifier _notifier;
+    private readonly RoomEventDispatcher _events;
 
-    public ProcessActionCommandHandler(IRoomRepository roomRepository, IGameNotifier notifier)
+    public ProcessActionCommandHandler(IRoomRepository roomRepository, RoomEventDispatcher events)
     {
         _roomRepository = roomRepository;
-        _notifier = notifier;
+        _events = events;
     }
 
     public async Task<ProcessActionResult> Handle(ProcessActionCommand request, CancellationToken cancellationToken)
@@ -22,16 +22,10 @@ public class ProcessActionCommandHandler : IRequestHandler<ProcessActionCommand,
         // Fetch room
         var room = await _roomRepository.GetByRoomCodeAsync(request.RoomCode, cancellationToken);
         if (room == null)
-        {
-            await _notifier.NotifyError("", "Room not found");
             return new ProcessActionResult { Success = false, Error = "Room not found" };
-        }
 
         if (room.CurrentState == null)
-        {
-            await _notifier.NotifyError("", "Game has not started");
             return new ProcessActionResult { Success = false, Error = "Game has not started" };
-        }
 
         // Create action request
         var actionRequest = new ActionRequest
@@ -44,10 +38,7 @@ public class ProcessActionCommandHandler : IRequestHandler<ProcessActionCommand,
         // Validate action
         var result = GameEngine.ValidateAction(room.CurrentState, actionRequest);
         if (!result.IsSuccess)
-        {
-            await _notifier.NotifyError("", result.Error ?? "Invalid action");
             return new ProcessActionResult { Success = false, Error = result.Error };
-        }
 
         // Push new state
         room.PushState(result.Value!);
@@ -55,9 +46,8 @@ public class ProcessActionCommandHandler : IRequestHandler<ProcessActionCommand,
         // Save
         await _roomRepository.SaveAsync(room, cancellationToken);
 
-        // Broadcast
-        await _notifier.NotifyGameStateUpdated(request.RoomCode, room.CurrentState);
+        var snapshot = await _events.PublishAsync(RoomEventTypes.GameStateUpdated, room, request.PlayerId, cancellationToken);
 
-        return new ProcessActionResult { Success = true, GameState = GameStateDto.MapFromDomain(room) };
+        return new ProcessActionResult { Success = true, Revision = room.Revision, Snapshot = snapshot, GameState = snapshot.GameState };
     }
 }

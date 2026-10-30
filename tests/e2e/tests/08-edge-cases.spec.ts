@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
+import { createRoom, paceRoomCreation, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import { call, check, fold, waitForMyTurn, waitForPhase } from '../helpers/actions';
 
 test.describe('Edge Cases', () => {
@@ -27,7 +27,7 @@ test.describe('Edge Cases', () => {
     // Refresh player 1's page
     await page1.reload();
 
-    // After reload: game state should restore via SignalR + sessionStorage
+    // After reload: game state should restore via the resync GET + sessionStorage
     await waitForGameReady(page1);
 
     // Pot still visible after reconnect
@@ -82,20 +82,21 @@ test.describe('Edge Cases', () => {
   });
 
   test('TC37 - health endpoint returns healthy', async ({ request }) => {
-    const response = await request.get('http://localhost:5000/health');
+    const response = await request.get('/api/health');
     expect(response.ok()).toBe(true);
     const body = await response.text();
     expect(body).toContain('healthy');
   });
 
   test('TC38 - GET /api/rooms/INVALID returns 404', async ({ request }) => {
-    const response = await request.get('http://localhost:5000/api/rooms/ZZZZZZ');
+    const response = await request.get('/api/rooms/ZZZZZZ');
     expect(response.status()).toBe(404);
   });
 
   test('TC39 - create room then GET returns correct initial state', async ({ request }) => {
     // Create a room via REST
-    const createResponse = await request.post('http://localhost:5000/api/rooms', {
+    await paceRoomCreation();
+    const createResponse = await request.post('/api/rooms', {
       data: {
         startingStack: 500,
         smallBlind: 5,
@@ -109,26 +110,26 @@ test.describe('Edge Cases', () => {
     expect(roomCode).toMatch(/^[A-Z0-9]{6}$/);
 
     // Join as two players
-    const join1 = await request.post(`http://localhost:5000/api/rooms/${roomCode}/join`, {
+    const join1 = await request.post(`/api/rooms/${roomCode}/join`, {
       data: { name: 'TestP1' },
     });
     expect(join1.ok()).toBe(true);
     const join1Data = await join1.json();
     const creatorId: string = join1Data.playerId;
 
-    const join2 = await request.post(`http://localhost:5000/api/rooms/${roomCode}/join`, {
+    const join2 = await request.post(`/api/rooms/${roomCode}/join`, {
       data: { name: 'TestP2' },
     });
     expect(join2.ok()).toBe(true);
 
     // Start the game
-    const startResponse = await request.post(`http://localhost:5000/api/rooms/${roomCode}/start`, {
+    const startResponse = await request.post(`/api/rooms/${roomCode}/start`, {
       data: { playerId: creatorId },
     });
     expect(startResponse.ok()).toBe(true);
 
     // GET room state
-    const getResponse = await request.get(`http://localhost:5000/api/rooms/${roomCode}`);
+    const getResponse = await request.get(`/api/rooms/${roomCode}`);
     expect(getResponse.ok()).toBe(true);
     const getRoomData = await getResponse.json();
     expect(getRoomData.success).toBe(true);

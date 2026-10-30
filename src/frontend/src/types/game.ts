@@ -52,6 +52,30 @@ export interface GameState {
   isHandActive: boolean;
   pots: PotShare[];
   recentActivity?: ActivityEntry[];
+  pendingUndoRequestBy?: string | null;
+}
+
+/** What every REST command response and every pushed event carries. */
+export interface RoomSnapshot {
+  revision: number;
+  roomInfo?: RoomInfo | null;
+  gameState?: GameState | null;
+}
+
+export type RoomEventType =
+  | 'playerJoined'
+  | 'gameStarted'
+  | 'gameStateUpdated'
+  | 'undoRequested'
+  | 'undoDeclined'
+  | 'undoCancelled';
+
+export interface RoomEvent extends RoomSnapshot {
+  type: RoomEventType;
+  roomCode: string;
+  actorPlayerId?: string | null;
+  /** Set when the event was too large to carry a snapshot: the client must resync via GET. */
+  stale?: boolean;
 }
 
 export interface ActionRequest {

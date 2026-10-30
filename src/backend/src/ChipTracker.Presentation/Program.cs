@@ -3,22 +3,23 @@ using System.Threading.RateLimiting;
 using ChipTracker.Presentation.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.AspNetCore.SignalR;
 using ChipTracker.Application;
 using ChipTracker.Application.Commands;
 using ChipTracker.Application.Interfaces;
 using ChipTracker.Application.Queries;
 using ChipTracker.Infrastructure;
 using ChipTracker.Presentation.Endpoints;
-using ChipTracker.Presentation.Hubs;
-using ChipTracker.Presentation.Services;
+using ChipTracker.Presentation.Realtime;
 using MediatR;
+using Amazon.Lambda.AspNetCoreServer.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var rateLimits = builder.Configuration.GetSection(RateLimitOptions.SectionName).Get<RateLimitOptions>() ?? new RateLimitOptions();
 builder.Services.Configure<RateLimitOptions>(builder.Configuration.GetSection(RateLimitOptions.SectionName));
-builder.Services.AddSingleton<HubRateLimitFilter>();
+
+// No-op unless AWS_LAMBDA_FUNCTION_NAME is set, so Kestrel/docker/tests are unaffected.
+builder.Services.AddAWSLambdaHosting(LambdaEventSource.HttpApi);
 
 // Trust exactly the configured number of proxy hops (nginx locally, CloudFront/ALB when deployed).
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -53,18 +54,31 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("create-room", ctx => PerIp(ctx, rateLimits.CreateRoomPerMinute));
     options.AddPolicy("join", ctx => PerIp(ctx, rateLimits.JoinPerMinute));
     options.AddPolicy("read", ctx => PerIp(ctx, rateLimits.ReadPerMinute));
-    options.AddPolicy("hub-connect", ctx => PerIp(ctx, rateLimits.HubConnectPerMinute));
+    options.AddPolicy("command", ctx => RateLimitPartition.GetTokenBucketLimiter(
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new TokenBucketRateLimiterOptions
+        {
+            TokenLimit = rateLimits.CommandBurst,
+            TokensPerPeriod = rateLimits.CommandsPerSecond,
+            ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
 });
 
 // Add services
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddScoped<IGameNotifier, SignalRGameNotifier>();
-builder.Services.AddSignalR(options => options.AddFilter<HubRateLimitFilter>())
-    .AddJsonProtocol(options =>
-    {
-        options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-    });
+var realtimeMode = builder.Configuration.GetValue("Realtime:Mode", "InProcess");
+if (string.Equals(realtimeMode, "ApiGateway", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddApiGatewayRealtime(builder.Configuration);
+}
+else
+{
+    builder.Services.AddSingleton<InProcessConnectionRegistry>();
+    builder.Services.AddSingleton<IRoomEventPublisher, InProcessRoomEventPublisher>();
+}
 builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -85,19 +99,39 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-app.UseForwardedHeaders();
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (RoomConcurrencyException ex) when (!context.Response.HasStarted)
+    {
+        context.Response.StatusCode = StatusCodes.Status409Conflict;
+        await context.Response.WriteAsJsonAsync(new { success = false, error = ex.Message });
+    }
+});
+
+if (string.Equals(rateLimits.ClientIpSource, RateLimitOptions.CloudFrontViewerAddressSource, StringComparison.OrdinalIgnoreCase))
+    app.UseMiddleware<CloudFrontViewerAddressMiddleware>();
+else
+    app.UseForwardedHeaders();
 app.UseRouting();
 app.UseCors("AllowAll");
 app.UseRateLimiter();
 
 // Health check
 app.MapGet("/health", () => Results.Ok("healthy"));
+app.MapGet("/api/health", () => Results.Ok("healthy"));
 
-// SignalR Hub
-app.MapHub<GameHub>("/hubs/game").RequireRateLimiting("hub-connect");
+// WebSocket push (API Gateway handles /ws itself when deployed)
+if (!string.Equals(realtimeMode, "ApiGateway", StringComparison.OrdinalIgnoreCase))
+    app.MapInProcessWebSocket();
 
 // REST Endpoints
 var api = app.MapGroup("/api");
+
+api.MapGameCommands();
 
 // Create room endpoint
 api.MapPost("/rooms", async (CreateRoomRequest req, IMediator mediator) =>
@@ -123,7 +157,7 @@ api.MapGet("/rooms/{roomCode}", async (string roomCode, IMediator mediator) =>
     var result = await mediator.Send(query);
 
     return result.Success
-        ? Results.Ok(new { success = true, roomInfo = result.RoomInfo, gameState = result.GameState, error = (string?)null })
+        ? Results.Ok(new { success = true, roomInfo = result.RoomInfo, gameState = result.GameState, revision = result.Revision, error = (string?)null })
         : Results.NotFound(new { success = false, roomInfo = (object?)null, gameState = (object?)null, error = result.Error });
 }).RequireRateLimiting("read");
 
@@ -134,7 +168,7 @@ api.MapPost("/rooms/{roomCode}/join", async (string roomCode, JoinRoomRequest re
     var result = await mediator.Send(command);
 
     return result.Success
-        ? Results.Ok(new { success = true, playerId = result.PlayerId, isCreator = result.IsCreator, error = (string?)null })
+        ? Results.Ok(new { success = true, playerId = result.PlayerId, isCreator = result.IsCreator, revision = result.Revision, roomInfo = result.Snapshot?.RoomInfo, gameState = result.Snapshot?.GameState, error = (string?)null })
         : Results.BadRequest(new { success = false, playerId = (string?)null, isCreator = false, error = result.Error });
 }).RequireRateLimiting("join");
 
@@ -145,7 +179,7 @@ api.MapPost("/rooms/{roomCode}/start", async (string roomCode, StartGameRequest 
     var result = await mediator.Send(command);
 
     return result.Success
-        ? Results.Ok(new { success = true, gameState = result.GameState, error = (string?)null })
+        ? Results.Ok(new { success = true, roomInfo = result.Snapshot?.RoomInfo, gameState = result.GameState, revision = result.Revision, error = (string?)null })
         : Results.BadRequest(new { success = false, gameState = (object?)null, error = result.Error });
 }).RequireRateLimiting("join");
 

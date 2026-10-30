@@ -4,8 +4,10 @@ import { useGameStore } from '../stores/gameStore';
 import type { GetRoomResponse, JoinRoomRequest, JoinRoomResponse } from '../types/game';
 import { cn, getAvatarColor } from '@/lib/utils';
 import ChipLogo from '../components/ChipLogo';
+import { useApiWarmUp } from '../hooks/useApiWarmUp';
 
 export default function JoinRoomPage() {
+  useApiWarmUp();
   const [searchParams] = useSearchParams();
   const [roomCode, setRoomCode] = useState(searchParams.get('room') ?? '');
   const [error, setError] = useState('');

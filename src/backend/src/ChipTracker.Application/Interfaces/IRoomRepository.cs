@@ -22,4 +22,9 @@ public interface IRoomRepository
     /// Returns false when the code is taken.
     /// </summary>
     Task<bool> TryCreateAsync(GameRoom room, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks that a room exists and has not expired, without reading the full item.
+    /// </summary>
+    Task<bool> ExistsAsync(string roomCode, CancellationToken cancellationToken = default);
 }

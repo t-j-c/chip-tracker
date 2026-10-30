@@ -1,17 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Reflection;
-using System.Security.Claims;
 using ChipTracker.Application.Interfaces;
 using ChipTracker.Domain.Entities;
 using ChipTracker.Presentation.RateLimiting;
 using FluentAssertions;
-using Microsoft.AspNetCore.Connections;
-using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 namespace ChipTracker.Integration.Tests;
 
@@ -29,6 +23,8 @@ public class RateLimitingTests : IClassFixture<RateLimitingTests.Factory>
             builder.UseSetting("DynamoDB:UseLocal", "false");
             builder.UseSetting("RateLimiting:CreateRoomPerMinute", "3");
             builder.UseSetting("RateLimiting:ReadPerMinute", "2");
+            builder.UseSetting("RateLimiting:CommandBurst", "3");
+            builder.UseSetting("RateLimiting:CommandsPerSecond", "1");
             builder.ConfigureServices(services =>
             {
                 services.AddScoped<IRoomRepository, FakeRepo>();
@@ -41,6 +37,7 @@ public class RateLimitingTests : IClassFixture<RateLimitingTests.Factory>
         public Task<GameRoom?> GetByRoomCodeAsync(string roomCode, CancellationToken ct = default) => Task.FromResult<GameRoom?>(null);
         public Task SaveAsync(GameRoom room, CancellationToken ct = default) => Task.CompletedTask;
         public Task<bool> TryCreateAsync(GameRoom room, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<bool> ExistsAsync(string roomCode, CancellationToken ct = default) => Task.FromResult(false);
     }
 
     private readonly Factory _factory;
@@ -88,36 +85,24 @@ public class RateLimitingTests : IClassFixture<RateLimitingTests.Factory>
             (await client.GetAsync("/health")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
-    private class TestHub : Hub { }
-
-    private class TestContext : HubCallerContext
-    {
-        public override string ConnectionId => "c1";
-        public override string? UserIdentifier => null;
-        public override ClaimsPrincipal? User => null;
-        public override IDictionary<object, object?> Items { get; } = new Dictionary<object, object?>();
-        public override IFeatureCollection Features { get; } = new FeatureCollection();
-        public override CancellationToken ConnectionAborted => CancellationToken.None;
-        public override void Abort() { }
-    }
-
     [Fact]
-    public async Task HubFilter_AllowsBurstThenThrowsHubException()
+    public async Task Commands_AllowBurstThen429()
     {
-        var filter = new HubRateLimitFilter(Options.Create(new RateLimitOptions { HubInvocationBurst = 3, HubInvocationsPerSecond = 1 }));
-        var ctx = new TestContext();
-        var sp = new ServiceCollection().BuildServiceProvider();
-        var hub = new TestHub();
-        await filter.OnConnectedAsync(new HubLifetimeContext(ctx, sp, hub), _ => Task.CompletedTask);
+        var client = _factory.CreateClient();
 
-        var method = typeof(TestHub).GetMethod(nameof(object.ToString))!;
-        var invocation = new HubInvocationContext(ctx, sp, hub, method, []);
-        ValueTask<object?> Next(HubInvocationContext _) => new((object?)null);
+        async Task<HttpStatusCode> Act()
+        {
+            var req = new HttpRequestMessage(HttpMethod.Post, "/api/rooms/ABC123/rebuy")
+            {
+                Content = JsonContent.Create(new { playerId = "p1" })
+            };
+            req.Headers.Add("X-Forwarded-For", "10.0.2.1");
+            return (await client.SendAsync(req)).StatusCode;
+        }
 
         for (var i = 0; i < 3; i++)
-            await filter.InvokeMethodAsync(invocation, Next);
+            (await Act()).Should().Be(HttpStatusCode.NotFound);
 
-        var act = async () => await filter.InvokeMethodAsync(invocation, Next);
-        await act.Should().ThrowAsync<HubException>();
+        (await Act()).Should().Be(HttpStatusCode.TooManyRequests);
     }
 }

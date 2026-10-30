@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using ChipTracker.Application.Commands;
 using ChipTracker.Application.Interfaces;
 using ChipTracker.Domain.Engine;
@@ -11,12 +12,12 @@ namespace ChipTracker.Application.Tests;
 public class ResolveShowdownCommandHandlerTests
 {
     private readonly IRoomRepository _repo = Substitute.For<IRoomRepository>();
-    private readonly IGameNotifier _notifier = Substitute.For<IGameNotifier>();
+    private readonly IRoomEventPublisher _publisher = Substitute.For<IRoomEventPublisher>();
     private readonly ResolveShowdownCommandHandler _handler;
 
     public ResolveShowdownCommandHandlerTests()
     {
-        _handler = new ResolveShowdownCommandHandler(_repo, _notifier);
+        _handler = new ResolveShowdownCommandHandler(_repo, new RoomEventDispatcher(_publisher, NullLogger<RoomEventDispatcher>.Instance));
     }
 
     private static GameRoom MakeRoomAtShowdown(bool viaAllIn = false)

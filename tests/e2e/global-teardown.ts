@@ -6,6 +6,7 @@ const REPO_ROOT = path.resolve(__dirname, '../..');
 const LOGS_DIR = path.join(__dirname, 'test-results');
 
 async function globalTeardown() {
+  if (process.env.E2E_BASE_URL) return;
   // Dump container logs before removing containers so they can be inspected later.
   try {
     fs.mkdirSync(LOGS_DIR, { recursive: true });

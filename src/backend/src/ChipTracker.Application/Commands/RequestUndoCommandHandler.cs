@@ -6,12 +6,12 @@ namespace ChipTracker.Application.Commands;
 public class RequestUndoCommandHandler : IRequestHandler<RequestUndoCommand, RequestUndoResult>
 {
     private readonly IRoomRepository _roomRepository;
-    private readonly IGameNotifier _notifier;
+    private readonly RoomEventDispatcher _events;
 
-    public RequestUndoCommandHandler(IRoomRepository roomRepository, IGameNotifier notifier)
+    public RequestUndoCommandHandler(IRoomRepository roomRepository, RoomEventDispatcher events)
     {
         _roomRepository = roomRepository;
-        _notifier = notifier;
+        _events = events;
     }
 
     public async Task<RequestUndoResult> Handle(RequestUndoCommand request, CancellationToken cancellationToken)
@@ -30,8 +30,8 @@ public class RequestUndoCommandHandler : IRequestHandler<RequestUndoCommand, Req
         room.UndoRequestedAt = DateTime.UtcNow;
 
         await _roomRepository.SaveAsync(room, cancellationToken);
-        await _notifier.NotifyUndoRequested(request.RoomCode, request.PlayerId);
+        var snapshot = await _events.PublishAsync(RoomEventTypes.UndoRequested, room, request.PlayerId, cancellationToken);
 
-        return new RequestUndoResult { Success = true };
+        return new RequestUndoResult { Success = true, Revision = room.Revision, Snapshot = snapshot };
     }
 }

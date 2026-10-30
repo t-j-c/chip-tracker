@@ -28,6 +28,11 @@ Goal: full Playwright suite green. Never declare done without a **full clean run
 
 Setup rebuilds and teardown destroys the stack on every `playwright test` invocation. Each run costs a Docker build.
 
+**Remote target:**
+- Setting `E2E_BASE_URL` (e.g. `https://deal-me-in.com`) skips Docker entirely and runs against that site; `npm run test:remote` also excludes `@local-only` specs.
+- Room creation is paced 6.5 s apart because of production rate limits (`E2E_ROOM_CREATE_INTERVAL_MS` overrides this).
+- Never hard-code `localhost` URLs in specs: use relative paths (`/api/...`).
+
 Bundled: [scripts/summarize-results.ps1](./scripts/summarize-results.ps1) — turns a Playwright JSON report into one line per failure. This is the primary way to read results.
 
 ## Verbosity Ladder

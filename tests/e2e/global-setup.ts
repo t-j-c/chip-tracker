@@ -34,6 +34,10 @@ function poll(url: string, timeoutMs: number): Promise<void> {
 }
 
 async function globalSetup() {
+  if (process.env.E2E_BASE_URL) {
+    console.log('\n[E2E setup] E2E_BASE_URL set; skipping Docker Compose.');
+    return;
+  }
   console.log('\n[E2E setup] Starting Docker Compose stack...');
 
   try {

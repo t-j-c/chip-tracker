@@ -1,0 +1,181 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "planning/**"
+      - "**/*.md"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref (commit SHA, tag or branch) to deploy. Use a known-good commit to roll back."
+        required: false
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Backend tests
+        run: dotnet test src/backend --configuration Release --verbosity normal
+
+      - name: Publish Lambda bundles
+        shell: pwsh
+        run: ./scripts/publish-lambdas.ps1
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: src/frontend
+
+      - name: Frontend tests
+        run: npm run test
+        working-directory: src/frontend
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: src/frontend
+        env:
+          VITE_API_URL: ""
+
+      - name: Upload Lambda bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda
+          path: artifacts/lambda
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload frontend
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: src/frontend/dist
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      site_url: ${{ steps.outputs.outputs.site_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: infra/package-lock.json
+
+      - name: Download Lambda bundles
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda
+          path: artifacts/lambda
+
+      - name: Download frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend-dist
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install infra dependencies
+        run: npm ci
+        working-directory: infra
+
+      # Deploys the infrastructure and both Lambda bundles together. Backend changes go live before the
+      # frontend below, so API changes must stay backward compatible with the previous SPA for one release.
+      - name: CDK deploy
+        run: npx cdk deploy chip-tracker-prod --require-approval never -c alertEmail="${{ vars.ALERT_EMAIL }}" --outputs-file cdk-outputs.json
+        working-directory: infra
+
+      - name: Read stack outputs
+        id: outputs
+        run: |
+          BUCKET=$(jq -r '.["chip-tracker-prod"].FrontendBucketName' infra/cdk-outputs.json)
+          DIST=$(jq -r '.["chip-tracker-prod"].DistributionId' infra/cdk-outputs.json)
+          SITE=$(jq -r '.["chip-tracker-prod"].SiteUrl' infra/cdk-outputs.json)
+          for v in "$BUCKET" "$DIST" "$SITE"; do
+            if [ -z "$v" ] || [ "$v" = "null" ]; then echo "Missing stack output"; cat infra/cdk-outputs.json; exit 1; fi
+          done
+          echo "bucket=$BUCKET" >> "$GITHUB_OUTPUT"
+          echo "distribution_id=$DIST" >> "$GITHUB_OUTPUT"
+          echo "site_url=$SITE" >> "$GITHUB_OUTPUT"
+
+      # Hashed assets are immutable. index.html is uploaded last, so it never references a file that is not there yet.
+      - name: Sync frontend assets
+        run: |
+          aws s3 sync frontend-dist "s3://${{ steps.outputs.outputs.bucket }}" \
+            --delete \
+            --exclude "index.html" \
+            --cache-control "public,max-age=31536000,immutable"
+          aws s3 cp frontend-dist/index.html "s3://${{ steps.outputs.outputs.bucket }}/index.html" \
+            --cache-control "no-cache,no-store,must-revalidate" \
+            --content-type "text/html"
+
+      - name: Invalidate index.html
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.outputs.outputs.distribution_id }}" \
+            --paths "/index.html"
+
+  smoke:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # The site may need a moment after the invalidation; the script itself has no retries.
+      - name: Smoke test
+        run: |
+          for attempt in 1 2 3; do
+            if node tests/smoke/smoke.mjs "${{ needs.deploy.outputs.site_url }}"; then exit 0; fi
+            echo "Attempt $attempt failed"; sleep 15
+          done
+          exit 1

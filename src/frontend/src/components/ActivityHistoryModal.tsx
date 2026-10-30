@@ -77,7 +77,7 @@ export function ActivityHistoryModal({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 max-h-[80vh] w-[90vw] max-w-lg translate-x-[-50%] translate-y-[-50%] overflow-y-auto rounded-lg border border-surface-card bg-surface-elevated p-6 shadow-lg">
+        <Dialog.Content data-testid="activity-history-modal" className="fixed left-[50%] top-[50%] z-50 max-h-[80vh] w-[90vw] max-w-lg translate-x-[-50%] translate-y-[-50%] overflow-y-auto rounded-lg border border-surface-card bg-surface-elevated p-6 shadow-lg">
           <div className="flex items-center justify-between mb-4">
             <Dialog.Title className="text-xl font-semibold text-text-primary">
               Activity History
@@ -115,6 +115,7 @@ export function ActivityHistoryModal({
                     {handEntries.map((entry, idx) => (
                       <div
                         key={idx}
+                        data-testid={`activity-entry-${handNumber}-${idx}`}
                         className={`text-sm text-text-secondary ${
                           entry.isUndone ? 'line-through opacity-50' : ''
                         }`}

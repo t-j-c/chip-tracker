@@ -7,12 +7,12 @@ namespace ChipTracker.Application.Commands;
 public class UndoActionCommandHandler : IRequestHandler<UndoActionCommand, UndoActionResult>
 {
     private readonly IRoomRepository _roomRepository;
-    private readonly IGameNotifier _notifier;
+    private readonly RoomEventDispatcher _events;
 
-    public UndoActionCommandHandler(IRoomRepository roomRepository, IGameNotifier notifier)
+    public UndoActionCommandHandler(IRoomRepository roomRepository, RoomEventDispatcher events)
     {
         _roomRepository = roomRepository;
-        _notifier = notifier;
+        _events = events;
     }
 
     public async Task<UndoActionResult> Handle(UndoActionCommand request, CancellationToken cancellationToken)
@@ -36,9 +36,8 @@ public class UndoActionCommandHandler : IRequestHandler<UndoActionCommand, UndoA
         // Save
         await _roomRepository.SaveAsync(room, cancellationToken);
 
-        // Broadcast
-        await _notifier.NotifyGameStateUpdated(request.RoomCode, room.CurrentState);
+        var snapshot = await _events.PublishAsync(RoomEventTypes.GameStateUpdated, room, request.PlayerId, cancellationToken);
 
-        return new UndoActionResult { Success = true, GameState = GameStateDto.MapFromDomain(room) };
+        return new UndoActionResult { Success = true, Revision = room.Revision, Snapshot = snapshot, GameState = snapshot.GameState };
     }
 }

@@ -5,6 +5,11 @@ import { Construct } from 'constructs';
 export interface GitHubOidcStackProps extends cdk.StackProps {
   /** e.g. "my-org/chip-tracker" */
   githubRepo: string;
+  /**
+   * ARN of an existing GitHub OIDC provider. An account can only have one provider per URL,
+   * so reuse it when another stack already created it.
+   */
+  existingProviderArn?: string;
 }
 
 /**
@@ -20,12 +25,14 @@ export class GitHubOidcStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: GitHubOidcStackProps) {
     super(scope, id, props);
 
-    const { githubRepo } = props;
+    const { githubRepo, existingProviderArn } = props;
 
-    const provider = new iam.OpenIdConnectProvider(this, 'GitHubOidcProvider', {
-      url: 'https://token.actions.githubusercontent.com',
-      clientIds: ['sts.amazonaws.com'],
-    });
+    const provider = existingProviderArn
+      ? iam.OpenIdConnectProvider.fromOpenIdConnectProviderArn(this, 'GitHubOidcProvider', existingProviderArn)
+      : new iam.OpenIdConnectProvider(this, 'GitHubOidcProvider', {
+          url: 'https://token.actions.githubusercontent.com',
+          clientIds: ['sts.amazonaws.com'],
+        });
 
     this.deployRole = new iam.Role(this, 'GitHubDeployRole', {
       roleName: 'chip-tracker-github-deploy',

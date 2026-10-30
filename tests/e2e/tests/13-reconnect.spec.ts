@@ -6,7 +6,8 @@ import { call, waitForMyTurn } from '../helpers/actions';
 
 const REPO_ROOT = path.resolve(__dirname, '../../..');
 
-test.describe('Reconnect (Journey: backend restart)', () => {
+test.describe('Reconnect (Journey: backend restart) @local-only', () => {
+  test.skip(!!process.env.E2E_BASE_URL, 'Needs docker compose');
   test('TC60 - both clients resume receiving updates after the backend restarts', async ({ browser }) => {
     test.setTimeout(120_000);
     const ctx1 = await browser.newContext();
@@ -22,7 +23,7 @@ test.describe('Reconnect (Journey: backend restart)', () => {
     await waitForGameReady(page1);
     await waitForGameReady(page2);
 
-    // New connections must rejoin the room group after the restart
+    // The restart drops the in-process sockets; clients must reconnect and resync
     execSync('docker compose restart backend', { cwd: REPO_ROOT, stdio: 'inherit' });
 
     for (const page of [page1, page2]) {
@@ -36,7 +37,7 @@ test.describe('Reconnect (Journey: backend restart)', () => {
 
     await call(actingPage);
 
-    // The other client only sees its turn if it rejoined the group and got the broadcast
+    // The other client only sees its turn if it reconnected and received the push
     await waitForMyTurn(otherPage);
 
     await ctx1.close();

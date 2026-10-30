@@ -11,6 +11,7 @@ public class GetRoomQuery : IRequest<GetRoomResult>
 public class GetRoomResult
 {
     public bool Success { get; set; }
+    public long Revision { get; set; }
     public GameStateDto? GameState { get; set; }
     public RoomInfoDto? RoomInfo { get; set; }
     public string? Error { get; set; }

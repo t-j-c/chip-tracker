@@ -11,12 +11,12 @@ namespace ChipTracker.Application.Commands;
 public class DeclineRebuyCommandHandler : IRequestHandler<DeclineRebuyCommand, DeclineRebuyResult>
 {
     private readonly IRoomRepository _roomRepository;
-    private readonly IGameNotifier _notifier;
+    private readonly RoomEventDispatcher _events;
 
-    public DeclineRebuyCommandHandler(IRoomRepository roomRepository, IGameNotifier notifier)
+    public DeclineRebuyCommandHandler(IRoomRepository roomRepository, RoomEventDispatcher events)
     {
         _roomRepository = roomRepository;
-        _notifier = notifier;
+        _events = events;
     }
 
     public async Task<DeclineRebuyResult> Handle(DeclineRebuyCommand request, CancellationToken cancellationToken)
@@ -31,15 +31,14 @@ public class DeclineRebuyCommandHandler : IRequestHandler<DeclineRebuyCommand, D
         var result = GameEngine.ApplyCashOut(room.CurrentState, request.PlayerId);
         if (!result.IsSuccess)
         {
-            await _notifier.NotifyError("", result.Error ?? "Cash out failed");
             return new DeclineRebuyResult { Success = false, Error = result.Error };
         }
 
         room.PushState(result.Value!);
 
         await _roomRepository.SaveAsync(room, cancellationToken);
-        await _notifier.NotifyGameStateUpdated(request.RoomCode, room.CurrentState);
+        var snapshot = await _events.PublishAsync(RoomEventTypes.GameStateUpdated, room, request.PlayerId, cancellationToken);
 
-        return new DeclineRebuyResult { Success = true, GameState = GameStateDto.MapFromDomain(room.CurrentState) };
+        return new DeclineRebuyResult { Success = true, Revision = room.Revision, Snapshot = snapshot, GameState = snapshot.GameState };
     }
 }

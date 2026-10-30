@@ -1,11 +1,12 @@
 import { useParams } from 'react-router-dom';
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import { useGameStore } from '../stores/gameStore';
-import { useSignalR } from '../hooks/useSignalR';
+import { useRoomEvents } from '../hooks/useRoomEvents';
+import { useGameCommands } from '../hooks/useGameCommands';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { PokerAction } from '../types/game';
-import type { PotAward, GetRoomResponse } from '../types/game';
+import type { PotAward } from '../types/game';
 import PlayerPanel from '../components/PlayerPanel';
 import PotDisplay from '../components/PotDisplay';
 import PhaseStepper from '../components/PhaseStepper';
@@ -23,20 +24,19 @@ export default function GamePage() {
     playerId,
     gameState,
     isConnected,
-    undoRequested,
-    undoPendingSelf,
     undoDeclined,
     roomSettings,
     error,
     setRoomCode,
     setPlayerId,
     setIsCreator,
-    setUndoRequested,
-    setUndoPendingSelf,
     setUndoDeclined,
-    setRoomSettings,
   } = useGameStore();
-  const { joinRoom, submitAction, requestUndo, approveUndo, declineUndo, cancelUndo, resolveShowdown, resolveSplitPot, resolveShowdownWithAwards, rebuy, declineRebuy } = useSignalR();
+  useRoomEvents(roomCode, playerId);
+  const { submitAction, requestUndo, approveUndo, declineUndo, cancelUndo, resolveShowdown, resolveSplitPot, resolveShowdownWithAwards, rebuy, declineRebuy } = useGameCommands();
+  // The undo prompt is derived from the snapshot, so a resync restores it after a missed push.
+  const undoRequested = gameState?.pendingUndoRequestBy ?? null;
+  const undoPendingSelf = !!playerId && undoRequested === playerId;
   const [showUndoDialog, setShowUndoDialog] = useState(false);
   const [showShowdownDialog, setShowShowdownDialog] = useState(false);
   const [showActivityHistory, setShowActivityHistory] = useState(false);
@@ -57,6 +57,7 @@ export default function GamePage() {
 
   useEffect(() => {
     if (!roomCode) return;
+    setRoomCode(roomCode);
 
     if (!playerId) {
       const storedPlayerId = sessionStorage.getItem(`playerId_${roomCode}`);
@@ -64,37 +65,9 @@ export default function GamePage() {
       if (storedPlayerId) {
         setPlayerId(storedPlayerId);
         setIsCreator(storedIsCreator);
-        joinRoom(roomCode, storedPlayerId);
       }
-    } else {
-      setRoomCode(roomCode);
-      joinRoom(roomCode, playerId);
     }
-  }, [roomCode, playerId, setRoomCode, setPlayerId, setIsCreator, joinRoom]);
-
-  // Fetch room settings (starting stack) if not already known, e.g. after a direct page
-  // refresh into /room/:code that skipped the lobby flow — needed to show the rebuy amount.
-  const fetchRoomSettings = useCallback(async () => {
-    if (!roomCode || roomSettings) return;
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${apiUrl}/api/rooms/${roomCode}`);
-      const data: GetRoomResponse = await res.json();
-      if (data.success && data.roomInfo) {
-        setRoomSettings({
-          startingStack: data.roomInfo.startingStack,
-          smallBlind: data.roomInfo.smallBlind,
-          bigBlind: data.roomInfo.bigBlind,
-        });
-      }
-    } catch {
-      // Non-fatal: rebuy dialog falls back to a generic label without the amount.
-    }
-  }, [roomCode, roomSettings, setRoomSettings]);
-
-  useEffect(() => {
-    fetchRoomSettings();
-  }, [fetchRoomSettings]);
+  }, [roomCode, playerId, setRoomCode, setPlayerId, setIsCreator]);
 
   useEffect(() => {
     if (undoRequested && playerId && undoRequested !== playerId) {
@@ -181,7 +154,6 @@ export default function GamePage() {
     if (playerId && roomCode) {
       approveUndo(roomCode, playerId);
       setShowUndoDialog(false);
-      setUndoRequested(null);
     }
   };
 
@@ -190,14 +162,12 @@ export default function GamePage() {
       declineUndo(roomCode, playerId);
     }
     setShowUndoDialog(false);
-    setUndoRequested(null);
   };
 
   const handleCancelUndo = () => {
     if (playerId && roomCode) {
       cancelUndo(roomCode, playerId);
     }
-    setUndoPendingSelf(false);
   };
 
   const handleSelectWinner = (winnerId: string) => {
@@ -230,7 +200,6 @@ export default function GamePage() {
   const handleRequestUndo = () => {
     if (playerId && roomCode) {
       requestUndo(roomCode, playerId);
-      setUndoPendingSelf(true);
     }
   };
 

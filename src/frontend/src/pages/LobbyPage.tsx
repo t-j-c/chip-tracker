@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Copy, Check, Share2, Crown } from 'lucide-react';
 import { cn, getAvatarColor } from '@/lib/utils';
 import { useGameStore } from '../stores/gameStore';
-import { useSignalR } from '../hooks/useSignalR';
-import type { JoinRoomRequest, JoinRoomResponse, GetRoomResponse } from '../types/game';
+import { useRoomEvents } from '../hooks/useRoomEvents';
+import * as api from '../lib/api';
 
 export default function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -13,74 +13,33 @@ export default function LobbyPage() {
   const {
     playerId,
     isCreator,
+    creatorPlayerId,
     lobbyPlayers,
     gameState,
     roomSettings,
     setRoomCode,
     setPlayerId,
     setIsCreator,
-    setLobbyPlayers,
     addLobbyPlayer,
-    setRoomSettings,
+    applySnapshot,
     setError,
   } = useGameStore();
-  const loadRoomRef = useRef<() => Promise<void>>(async () => {});
-  // After a reconnect, refetch the roster to pick up PlayerJoined events missed while offline
-  const { joinRoom } = useSignalR({ onRejoined: () => void loadRoomRef.current() });
+  // Pushed events and resyncs on every (re)connect keep the roster and settings current.
+  useRoomEvents(roomCode, playerId);
 
   const [playerName, setPlayerName] = useState('');
   const [joining, setJoining] = useState(false);
   const [starting, setStarting] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [creatorPlayerId, setCreatorPlayerId] = useState<string | null>(null);
 
-  const apiUrl = import.meta.env.VITE_API_URL ?? '';
   const joinUrl = roomCode ? `${window.location.origin}/join?room=${roomCode}` : '';
 
-  // Load room state on mount (to populate lobby players if navigating back)
-  const loadRoom = useCallback(async () => {
-    if (!roomCode) return;
-    try {
-      const res = await fetch(`${apiUrl}/api/rooms/${roomCode}`);
-      const data: GetRoomResponse = await res.json();
-      if (data.success && data.roomInfo) {
-        setLobbyPlayers(data.roomInfo.players.map(p => ({ playerId: p.playerId, name: p.name })));
-        setRoomSettings({
-          startingStack: data.roomInfo.startingStack,
-          smallBlind: data.roomInfo.smallBlind,
-          bigBlind: data.roomInfo.bigBlind,
-        });
-        setCreatorPlayerId(data.roomInfo.creatorPlayerId ?? null);
-        // If the game already started, redirect to game page
-        if (data.roomInfo.isGameStarted) {
-          navigate(`/room/${roomCode}`);
-        }
-      }
-    } catch {
-      // Non-fatal: lobby will still work via SignalR
-    }
-  }, [roomCode, apiUrl, setLobbyPlayers, setRoomSettings, navigate]);
-
   useEffect(() => {
-    loadRoomRef.current = loadRoom;
-  }, [loadRoom]);
+    if (roomCode) setRoomCode(roomCode);
+  }, [roomCode, setRoomCode]);
 
-  useEffect(() => {
-    if (roomCode) {
-      setRoomCode(roomCode);
-      loadRoom();
-    }
-  }, [roomCode, setRoomCode, loadRoom]);
-
-  // When playerId is set, join the SignalR group so we get PlayerJoined events
-  useEffect(() => {
-    if (roomCode && playerId) {
-      joinRoom(roomCode, playerId);
-    }
-  }, [roomCode, playerId, joinRoom]);
-
-  // If GameStarted event arrives (via SignalR → gameState set in store), navigate to game
+  // Once the game starts (gameState becomes non-null), navigate to the game
   useEffect(() => {
     if (gameState && roomCode) {
       navigate(`/room/${roomCode}`);
@@ -94,26 +53,16 @@ export default function LobbyPage() {
     setJoinError(null);
 
     try {
-      const req: JoinRoomRequest = { name: playerName.trim() };
-      const res = await fetch(`${apiUrl}/api/rooms/${roomCode}/join`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(req),
-      });
-      const data: JoinRoomResponse = await res.json();
-
-      if (data.success && data.playerId) {
-        setPlayerId(data.playerId);
-        setIsCreator(data.isCreator ?? false);
-        addLobbyPlayer({ playerId: data.playerId, name: playerName.trim() });
-        sessionStorage.setItem(`playerId_${roomCode}`, data.playerId);
-        sessionStorage.setItem(`isCreator_${roomCode}`, String(data.isCreator ?? false));
-        setPlayerName('');
-      } else {
-        setJoinError(data.error || 'Failed to join room');
-      }
+      const data = await api.joinRoom(roomCode, playerName.trim());
+      setPlayerId(data.playerId);
+      setIsCreator(data.isCreator ?? false);
+      applySnapshot(data);
+      addLobbyPlayer({ playerId: data.playerId, name: playerName.trim() });
+      sessionStorage.setItem(`playerId_${roomCode}`, data.playerId);
+      sessionStorage.setItem(`isCreator_${roomCode}`, String(data.isCreator ?? false));
+      setPlayerName('');
     } catch (err) {
-      setJoinError(`Failed to reach server: ${err}`);
+      setJoinError(err instanceof Error ? err.message : `Failed to reach server: ${err}`);
     } finally {
       setJoining(false);
     }
@@ -125,18 +74,10 @@ export default function LobbyPage() {
     setError(null);
 
     try {
-      const res = await fetch(`${apiUrl}/api/rooms/${roomCode}/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerId }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        setError(data.error || 'Failed to start game');
-      }
-      // Navigation happens via the GameStarted SignalR event → gameState set → useEffect above
+      applySnapshot(await api.startGame(roomCode, playerId));
+      // Navigation happens once gameState is set (from this response or the pushed gameStarted event)
     } catch (err) {
-      setError(`Failed to reach server: ${err}`);
+      setError(err instanceof Error ? err.message : `Failed to reach server: ${err}`);
     } finally {
       setStarting(false);
     }

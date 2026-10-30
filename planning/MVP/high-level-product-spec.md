@@ -36,7 +36,7 @@ To validate the core loop with minimal engineering effort, the MVP is strictly b
 
 * **Two Players Only (Heads-Up):** Eliminates complex side-pot logic and multi-way action edge cases.
 
-* **Publicly Hosted, No Accounts:** The app is a public HTTPS web app on a single URL; players do not need to be on the same network. There is no user authentication: the room code is the only access control. Hosting is kept to a single low-cost instance (see [deployment-plan.md](./deployment-plan.md)). *(Revised: the original MVP was "Local Network Only".)*
+* **Publicly Hosted, No Accounts:** The app is a public HTTPS web app on a single URL; players do not need to be on the same network. There is no user authentication: the room code is the only access control. Hosting is serverless and pay-per-use: about $1/month at family scale, scaling automatically if usage grows (see [deployment-plan.md](./deployment-plan.md)). *(Revised: the original MVP was "Local Network Only".)*
 
 * **No Card Mechanics:** The app remains completely agnostic to the physical cards. It is purely an accounting and state-management tool.
 

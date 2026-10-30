@@ -35,7 +35,7 @@ async function setupBustedPlayer(browser: Browser) {
   const loserPage = other;
 
   // selectShowdownWinner fires a 1.5s confetti celebration before actually resolving the
-  // showdown over SignalR - wait for the rebuy dialog so every test starts from a settled state.
+  // showdown over REST - wait for the rebuy dialog so every test starts from a settled state.
   await expect(loserPage.locator('[data-testid="rebuy-dialog"]')).toBeVisible({ timeout: 5_000 });
 
   return { winnerPage, loserPage, ctx1, ctx2, roomCode };

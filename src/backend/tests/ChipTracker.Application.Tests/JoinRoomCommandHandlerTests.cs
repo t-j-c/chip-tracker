@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using ChipTracker.Application.Commands;
 using ChipTracker.Application.DTOs;
 using ChipTracker.Application.Interfaces;
@@ -10,12 +11,12 @@ namespace ChipTracker.Application.Tests;
 public class JoinRoomCommandHandlerTests
 {
     private readonly IRoomRepository _repo = Substitute.For<IRoomRepository>();
-    private readonly IGameNotifier _notifier = Substitute.For<IGameNotifier>();
+    private readonly IRoomEventPublisher _publisher = Substitute.For<IRoomEventPublisher>();
     private readonly JoinRoomCommandHandler _handler;
 
     public JoinRoomCommandHandlerTests()
     {
-        _handler = new JoinRoomCommandHandler(_repo, _notifier);
+        _handler = new JoinRoomCommandHandler(_repo, new RoomEventDispatcher(_publisher, NullLogger<RoomEventDispatcher>.Instance));
     }
 
     private static GameRoom MakeRoom(int playerCount = 0, bool gameStarted = false) => new()
@@ -133,6 +134,6 @@ public class JoinRoomCommandHandlerTests
 
         await _handler.Handle(new JoinRoomCommand { RoomCode = "ABC123", PlayerName = "Alice" }, CancellationToken.None);
 
-        await _notifier.Received(1).NotifyPlayerJoined("ABC123", Arg.Any<PlayerDto>(), 1);
+        await _publisher.Received(1).PublishAsync(Arg.Is<RoomEvent>(e => e.Type == RoomEventTypes.PlayerJoined && e.Snapshot.RoomInfo.Players.Count == 1), Arg.Any<CancellationToken>());
     }
 }

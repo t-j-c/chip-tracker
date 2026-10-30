@@ -1,9 +1,8 @@
 import { test, expect, Browser } from '@playwright/test';
 import { createRoom, joinRoomAsCreator, joinRoomByName, startGame, waitForGameReady } from '../helpers/game';
 import {
-  bet,
+  raise,
   call,
-  check,
   allIn,
   waitForMyTurn,
   waitForPhase,
@@ -69,24 +68,24 @@ test.describe('Activity History (Phase 11 e2e)', () => {
     await ctx2.close();
   });
 
-  test('TC52 - activity strip updates on both pages after a bet', async ({ browser }) => {
+  test('TC52 - activity strip updates on both pages after a raise', async ({ browser }) => {
     const { page1, page2, activePage, inactivePage, activePlayerName, ctx1, ctx2 } = await setupGame(browser);
 
     // Both pages should have a strip visible (may be empty or showing hand started)
     await expect(page1.locator('[data-testid="activity-strip"]')).toBeVisible();
     await expect(page2.locator('[data-testid="activity-strip"]')).toBeVisible();
 
-    // Active player bets 50
-    await bet(activePage, 50);
+    // Active player (small blind) raises to 50 (preflop there is already a bet to call)
+    await raise(activePage, 50);
 
     // Wait for both pages to update - the activity strip text should now show the bet entry
-    // Format: "Alice bet $50 on the Preflop" or similar
+    // Format: "Alice raised to $50 Preflop"
     const latestActivity1 = await getLatestActivity(page1);
     const latestActivity2 = await getLatestActivity(page2);
 
-    expect(latestActivity1).toContain('bet');
+    expect(latestActivity1).toContain('raised');
     expect(latestActivity1).toContain('$50');
-    expect(latestActivity2).toContain('bet');
+    expect(latestActivity2).toContain('raised');
     expect(latestActivity2).toContain('$50');
 
     // Both pages should have the same activity text (server-authoritative)
@@ -100,35 +99,13 @@ test.describe('Activity History (Phase 11 e2e)', () => {
     const { page1, page2, activePage, inactivePage, ctx1, ctx2 } = await setupGame(browser);
 
     // Play one hand to generate some activity entries
-    await bet(activePage, 50);
+    await raise(activePage, 50);
     await waitForMyTurn(inactivePage);
-    await call(inactivePage);
-
-    // Check phase changed and continue to showdown
+    // The caller acts first on the next street, so don't wait for the turn to pass
+    await inactivePage.getByRole('button', { name: /^Call/ }).click();
     await waitForPhase(page1, 'Flop');
-    const flopActive = await page1.getByText('Your Turn - Choose Action').isVisible() ? page1 : page2;
-    const flopInactive = flopActive === page1 ? page2 : page1;
-    await check(flopActive);
-    await waitForMyTurn(flopInactive);
-    await check(flopInactive);
 
-    // Turn
-    await waitForPhase(page1, 'Turn');
-    const turnActive = await page1.getByText('Your Turn - Choose Action').isVisible() ? page1 : page2;
-    const turnInactive = turnActive === page1 ? page2 : page1;
-    await check(turnActive);
-    await waitForMyTurn(turnInactive);
-    await check(turnInactive);
-
-    // River
-    await waitForPhase(page1, 'River');
-    const riverActive = await page1.getByText('Your Turn - Choose Action').isVisible() ? page1 : page2;
-    const riverInactive = riverActive === page1 ? page2 : page1;
-    await check(riverActive);
-    await waitForMyTurn(riverInactive);
-    await check(riverInactive);
-
-    // Now at showdown - open the modal from page1
+    // Open the modal from page1 (before showdown, whose dialog would cover the strip)
     await openActivityHistory(page1);
 
     // Modal should be visible with the "Activity History" heading
@@ -179,8 +156,8 @@ test.describe('Activity History (Phase 11 e2e)', () => {
   test('TC55 - undo strike-through shows in modal', async ({ browser }) => {
     const { page1, page2, activePage, inactivePage, ctx1, ctx2 } = await setupGame(browser);
 
-    // Active player bets
-    await bet(activePage, 50);
+    // Active player raises
+    await raise(activePage, 50);
 
     // Inactive player requests undo
     await waitForMyTurn(inactivePage);
@@ -190,8 +167,8 @@ test.describe('Activity History (Phase 11 e2e)', () => {
     await expect(activePage.locator('[data-testid="undo-dialog"]')).toBeVisible({ timeout: 5_000 });
     await approveUndo(activePage);
 
-    // Wait for undo to process - action bar should reappear on the inactive player
-    await expect(inactivePage.getByText('Your Turn - Choose Action')).toBeVisible({ timeout: 5_000 });
+    // Wait for undo to process - the raise is reverted, so the raiser is back on the clock
+    await expect(activePage.getByText('Your Turn - Choose Action')).toBeVisible({ timeout: 5_000 });
 
     // Open activity modal from page1
     await openActivityHistory(page1);

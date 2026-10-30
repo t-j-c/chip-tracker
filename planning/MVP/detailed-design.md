@@ -137,7 +137,13 @@ Playwright with two browser contexts:
 
 ### Phase 8: AWS CDK Infrastructure *(parallel with 2-6)*
 
-> **Superseded by [deployment-plan.md](./deployment-plan.md).** The ECS Fargate + ALB + NAT design below was built (`infra/src/stack.ts`) but never deployed. It costs about $60–150+/mo and has functional bugs: SignalR is not forwarded correctly through CloudFront, and SPA/API 404 handling is broken. It is being replaced with a single EC2 `t4g.nano` behind CloudFront + S3 + DynamoDB, about $8/mo.
+> **Superseded by [deployment-plan.md](./deployment-plan.md).** The ECS Fargate + ALB + NAT design below was built (`infra/src/stack.ts`) but never deployed. It costs about $60–150+/mo and has functional bugs: SignalR is not forwarded correctly through CloudFront, and SPA/API 404 handling is broken. It is being replaced with a serverless stack, about $1/mo at family scale:
+> * Lambda (the ASP.NET Core app) behind an API Gateway HTTP API
+> * API Gateway WebSocket for push
+> * S3 + CloudFront for the SPA
+> * DynamoDB
+>
+> App prerequisites: [room-concurrency-plan.md](./room-concurrency-plan.md), [realtime-rewrite-plan.md](./realtime-rewrite-plan.md), [lambda-hosting-plan.md](./lambda-hosting-plan.md).
 
 Original CDK stack (`infra/src/stack.ts`):
 - DynamoDB table (PAY_PER_REQUEST)
@@ -152,7 +158,11 @@ Original CDK stack (`infra/src/stack.ts`):
 
 ### Phase 9: CI/CD GitHub Actions *(depends on 8)*
 
-> **Superseded by [deployment-plan.md](./deployment-plan.md) Phase 3.** `cd.yml` and `infra-cd.yml` will be consolidated into a single `deploy.yml`: infra → backend via SSM → frontend to S3 → smoke test.
+> **Superseded by [deployment-plan.md](./deployment-plan.md) Phase 3.** `cd.yml` and `infra-cd.yml` will be consolidated into a single `deploy.yml`:
+> 1. Build the Lambda bundles + SPA.
+> 2. `cdk deploy` (infra and Lambda code together).
+> 3. Sync the SPA to S3 and invalidate `index.html`.
+> 4. Run the HTTP + WebSocket smoke test.
 
 - **backend.yml**: trigger `src/backend/**`, build, test (DynamoDB Local service container), docker push ECR, deploy ECS
 - **frontend.yml**: trigger `src/frontend/**`, install, lint, test, build, sync S3, CloudFront invalidation

@@ -5,7 +5,7 @@ using MediatR;
 
 namespace ChipTracker.Application.Commands;
 
-public class JoinRoomCommand : IRequest<JoinRoomResult>
+public class JoinRoomCommand : IRequest<JoinRoomResult>, IRoomCommand
 {
     public string RoomCode { get; set; } = string.Empty;
     public string PlayerName { get; set; } = string.Empty;
@@ -14,6 +14,8 @@ public class JoinRoomCommand : IRequest<JoinRoomResult>
 public class JoinRoomResult
 {
     public bool Success { get; set; }
+    public long Revision { get; set; }
+    public ChipTracker.Application.DTOs.RoomSnapshot? Snapshot { get; set; }
     public string? PlayerId { get; set; }
     public bool IsCreator { get; set; }
     public string? Error { get; set; }
@@ -22,12 +24,12 @@ public class JoinRoomResult
 public class JoinRoomCommandHandler : IRequestHandler<JoinRoomCommand, JoinRoomResult>
 {
     private readonly IRoomRepository _roomRepository;
-    private readonly IGameNotifier _notifier;
+    private readonly RoomEventDispatcher _events;
 
-    public JoinRoomCommandHandler(IRoomRepository roomRepository, IGameNotifier notifier)
+    public JoinRoomCommandHandler(IRoomRepository roomRepository, RoomEventDispatcher events)
     {
         _roomRepository = roomRepository;
-        _notifier = notifier;
+        _events = events;
     }
 
     public async Task<JoinRoomResult> Handle(JoinRoomCommand request, CancellationToken cancellationToken)
@@ -68,18 +70,8 @@ public class JoinRoomCommandHandler : IRequestHandler<JoinRoomCommand, JoinRoomR
         room.LastUpdatedAt = DateTime.UtcNow;
         await _roomRepository.SaveAsync(room, cancellationToken);
 
-        var playerDto = new PlayerDto
-        {
-            PlayerId = player.PlayerId,
-            Name = player.Name,
-            Stack = player.Stack,
-            CurrentBet = 0,
-            HasFolded = false,
-            IsAllIn = false,
-            IsDealer = false
-        };
-        await _notifier.NotifyPlayerJoined(request.RoomCode, playerDto, room.Players.Count);
+        var snapshot = await _events.PublishAsync(RoomEventTypes.PlayerJoined, room, player.PlayerId, cancellationToken);
 
-        return new JoinRoomResult { Success = true, PlayerId = player.PlayerId, IsCreator = isCreator };
+        return new JoinRoomResult { Success = true, PlayerId = player.PlayerId, IsCreator = isCreator, Revision = room.Revision, Snapshot = snapshot };
     }
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GameState } from '../types/game';
+import type { GameState, RoomSnapshot } from '../types/game';
 
 export interface LobbyPlayer {
   playerId: string;
@@ -16,13 +16,14 @@ export interface GameStore {
   roomCode: string | null;
   playerId: string | null;
   isCreator: boolean;
+  creatorPlayerId: string | null;
   lobbyPlayers: LobbyPlayer[];
   gameState: GameState | null;
   roomSettings: RoomSettings | null;
+  /** Highest room revision applied so far; older snapshots are ignored. */
+  lastRevision: number;
   isConnected: boolean;
   error: string | null;
-  undoRequested: string | null;
-  undoPendingSelf: boolean;
   /** Set when this player's undo request was declined by the other player. */
   undoDeclined: string | null;
   setRoomCode: (code: string) => void;
@@ -30,30 +31,29 @@ export interface GameStore {
   setIsCreator: (isCreator: boolean) => void;
   setLobbyPlayers: (players: LobbyPlayer[]) => void;
   addLobbyPlayer: (player: LobbyPlayer) => void;
-  setGameState: (state: GameState) => void;
   setRoomSettings: (settings: RoomSettings | null) => void;
+  /** Applies a snapshot only if it is newer than the last one applied. Returns whether it was applied. */
+  applySnapshot: (snapshot: RoomSnapshot) => boolean;
   setConnected: (connected: boolean) => void;
   setError: (error: string | null) => void;
-  setUndoRequested: (playerId: string | null) => void;
-  setUndoPendingSelf: (pending: boolean) => void;
-  clearUndoRequest: () => void;
   setUndoDeclined: (playerId: string | null) => void;
   reset: () => void;
 }
 
-export const useGameStore = create<GameStore>((set) => ({
+export const useGameStore = create<GameStore>((set, get) => ({
   roomCode: null,
   playerId: null,
   isCreator: false,
+  creatorPlayerId: null,
   lobbyPlayers: [],
   gameState: null,
   roomSettings: null,
+  lastRevision: 0,
   isConnected: false,
   error: null,
-  undoRequested: null,
-  undoPendingSelf: false,
   undoDeclined: null,
-  setRoomCode: (code) => set({ roomCode: code }),
+  setRoomCode: (code) =>
+    set((state) => (state.roomCode === code ? {} : { roomCode: code, lastRevision: 0 })),
   setPlayerId: (id) => set({ playerId: id }),
   setIsCreator: (isCreator) => set({ isCreator }),
   setLobbyPlayers: (players) => set({ lobbyPlayers: players }),
@@ -62,24 +62,35 @@ export const useGameStore = create<GameStore>((set) => ({
       ? state.lobbyPlayers
       : [...state.lobbyPlayers, player],
   })),
-  setGameState: (state) => set({ gameState: state }),
   setRoomSettings: (settings) => set({ roomSettings: settings }),
+  applySnapshot: ({ revision, roomInfo, gameState }) => {
+    if (revision <= get().lastRevision) return false;
+    set((state) => ({
+      lastRevision: revision,
+      gameState: gameState ?? state.gameState,
+      lobbyPlayers: roomInfo
+        ? roomInfo.players.map(p => ({ playerId: p.playerId, name: p.name }))
+        : state.lobbyPlayers,
+      roomSettings: roomInfo
+        ? { startingStack: roomInfo.startingStack, smallBlind: roomInfo.smallBlind, bigBlind: roomInfo.bigBlind }
+        : state.roomSettings,
+      creatorPlayerId: roomInfo ? roomInfo.creatorPlayerId ?? null : state.creatorPlayerId,
+    }));
+    return true;
+  },
   setConnected: (connected) => set({ isConnected: connected }),
   setError: (error) => set({ error }),
-  setUndoRequested: (playerId) => set({ undoRequested: playerId }),
-  setUndoPendingSelf: (pending) => set({ undoPendingSelf: pending }),
-  clearUndoRequest: () => set({ undoRequested: null, undoPendingSelf: false }),
   setUndoDeclined: (playerId) => set({ undoDeclined: playerId }),
   reset: () => set({
     roomCode: null,
     playerId: null,
     isCreator: false,
+    creatorPlayerId: null,
     lobbyPlayers: [],
     gameState: null,
     roomSettings: null,
+    lastRevision: 0,
     error: null,
-    undoRequested: null,
-    undoPendingSelf: false,
     undoDeclined: null,
   }),
 }));

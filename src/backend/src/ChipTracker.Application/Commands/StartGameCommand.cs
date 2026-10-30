@@ -5,7 +5,7 @@ using MediatR;
 
 namespace ChipTracker.Application.Commands;
 
-public class StartGameCommand : IRequest<StartGameResult>
+public class StartGameCommand : IRequest<StartGameResult>, IRoomCommand
 {
     public string RoomCode { get; set; } = string.Empty;
     public string PlayerId { get; set; } = string.Empty;
@@ -14,6 +14,8 @@ public class StartGameCommand : IRequest<StartGameResult>
 public class StartGameResult
 {
     public bool Success { get; set; }
+    public long Revision { get; set; }
+    public ChipTracker.Application.DTOs.RoomSnapshot? Snapshot { get; set; }
     public GameStateDto? GameState { get; set; }
     public string? Error { get; set; }
 }
@@ -21,12 +23,12 @@ public class StartGameResult
 public class StartGameCommandHandler : IRequestHandler<StartGameCommand, StartGameResult>
 {
     private readonly IRoomRepository _roomRepository;
-    private readonly IGameNotifier _notifier;
+    private readonly RoomEventDispatcher _events;
 
-    public StartGameCommandHandler(IRoomRepository roomRepository, IGameNotifier notifier)
+    public StartGameCommandHandler(IRoomRepository roomRepository, RoomEventDispatcher events)
     {
         _roomRepository = roomRepository;
-        _notifier = notifier;
+        _events = events;
     }
 
     public async Task<StartGameResult> Handle(StartGameCommand request, CancellationToken cancellationToken)
@@ -46,13 +48,14 @@ public class StartGameCommandHandler : IRequestHandler<StartGameCommand, StartGa
 
         var initialState = GameEngine.CreateInitialState(room.Players, room.SmallBlind, room.BigBlind, dealerIndex: 0);
         room.CurrentState = initialState;
+        // Drain the hand-start entries (blinds) so the activity log is populated from the first hand.
+        room.PushState();
         room.LastUpdatedAt = DateTime.UtcNow;
 
         await _roomRepository.SaveAsync(room, cancellationToken);
 
-        var dto = GameStateDto.MapFromDomain(initialState);
-        await _notifier.NotifyGameStarted(request.RoomCode, dto);
+        var snapshot = await _events.PublishAsync(RoomEventTypes.GameStarted, room, request.PlayerId, cancellationToken);
 
-        return new StartGameResult { Success = true, GameState = dto };
+        return new StartGameResult { Success = true, Revision = room.Revision, Snapshot = snapshot, GameState = snapshot.GameState };
     }
 }

@@ -16,6 +16,7 @@ public class GameStateDto
     public bool IsHandActive { get; set; }
     public List<PotShareDto> Pots { get; set; } = [];
     public List<ActivityEntryDto> RecentActivity { get; set; } = [];
+    public string? PendingUndoRequestBy { get; set; }
 
     public static GameStateDto MapFromDomain(GameState state)
     {
@@ -53,6 +54,7 @@ public class GameStateDto
     public static GameStateDto MapFromDomain(GameRoom room)
     {
         var dto = MapFromDomain(room.CurrentState!);
+        dto.PendingUndoRequestBy = room.PendingUndoRequestBy;
         
         // Include the last ~20 activity entries
         const int recentActivityCount = 20;

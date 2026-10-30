@@ -2,36 +2,15 @@
   "app": "npx ts-node src/index.ts",
   "watch": {
     "include": ["src/**"],
-    "exclude": ["node_modules", "lib"]
+    "exclude": ["node_modules", "lib", "test"]
   },
   "context": {
-    "env": "dev",
-    "projectName": "chip-tracker",
-    "dev": {
-      "vpc": {
-        "cidr": "10.0.0.0/16"
-      },
-      "ecs": {
-        "desiredCount": 1,
-        "cpu": 512,
-        "memory": 1024
-      },
-      "rds": {
-        "instanceType": "db.t3.micro"
-      }
-    },
-    "prod": {
-      "vpc": {
-        "cidr": "10.0.0.0/16"
-      },
-      "ecs": {
-        "desiredCount": 2,
-        "cpu": 1024,
-        "memory": 2048
-      },
-      "rds": {
-        "instanceType": "db.t3.small"
-      }
-    }
+    "domainName": "deal-me-in.com",
+    "hostedZoneId": "Z0347011UK8LW7XIFFUB",
+    "hostedZoneName": "deal-me-in.com",
+    "monthlyBudgetUsd": 5,
+    "apiMemoryMb": 1769,
+    "httpThrottle": { "rateLimit": 25, "burstLimit": 50 },
+    "wsThrottle": { "rateLimit": 10, "burstLimit": 20 }
   }
 }

@@ -4,6 +4,7 @@ import type { CreateRoomRequest, CreateRoomResponse } from '../types/game';
 import { cn } from '@/lib/utils';
 import { ChevronDown } from 'lucide-react';
 import ChipLogo from '../components/ChipLogo';
+import { useApiWarmUp } from '../hooks/useApiWarmUp';
 
 type PresetId = 'casual' | 'standard' | 'deep';
 
@@ -14,6 +15,7 @@ const PRESETS: { id: PresetId; label: string; stack: number; sb: number; bb: num
 ];
 
 export default function CreateRoomPage() {
+  useApiWarmUp();
   const navigate = useNavigate();
   const [startingStack, setStartingStack] = useState(1000);
   const [smallBlind, setSmallBlind] = useState(10);

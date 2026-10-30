@@ -1,6 +1,7 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
+using ChipTracker.Application;
 using ChipTracker.Domain.Entities;
 using ChipTracker.Infrastructure.Persistence;
 using FluentAssertions;
@@ -67,6 +68,55 @@ public class DynamoDbRoomRepositoryTests : IAsyncLifetime
         var repo = Repo();
         (await repo.TryCreateAsync(Room("DUP001"))).Should().BeTrue();
         (await repo.TryCreateAsync(Room("DUP001"))).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Save_WithStaleCopy_ThrowsConcurrencyAndKeepsFirstWrite()
+    {
+        var repo = Repo();
+        await repo.TryCreateAsync(Room("CC0001"));
+
+        var a = (await repo.GetByRoomCodeAsync("CC0001"))!;
+        var b = (await repo.GetByRoomCodeAsync("CC0001"))!;
+        a.StartingStack = 2000;
+        await repo.SaveAsync(a);
+        a.Revision.Should().Be(2);
+
+        b.StartingStack = 3000;
+        var act = () => repo.SaveAsync(b);
+        await act.Should().ThrowAsync<RoomConcurrencyException>();
+        b.Revision.Should().Be(1);
+
+        var loaded = (await repo.GetByRoomCodeAsync("CC0001"))!;
+        loaded.StartingStack.Should().Be(2000);
+        loaded.Revision.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task LegacyItemWithoutRevision_LoadsAsZeroAndSavesAsOne()
+    {
+        await _client.PutItemAsync(Table, new()
+        {
+            ["RoomCode"] = new AttributeValue("LEG001"),
+            ["StartingStack"] = new AttributeValue { N = "500" },
+            ["ExpirationTime"] = new AttributeValue { N = DateTimeOffset.UtcNow.AddDays(1).ToUnixTimeSeconds().ToString() }
+        });
+        var repo = Repo();
+
+        var room = (await repo.GetByRoomCodeAsync("LEG001"))!;
+        room.Revision.Should().Be(0);
+
+        await repo.SaveAsync(room);
+        (await repo.GetByRoomCodeAsync("LEG001"))!.Revision.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task TryCreate_WritesRevisionOne()
+    {
+        var repo = Repo();
+        await repo.TryCreateAsync(Room("REV001"));
+
+        (await repo.GetByRoomCodeAsync("REV001"))!.Revision.Should().Be(1);
     }
 
     [Fact]

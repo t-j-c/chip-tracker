@@ -5,6 +5,9 @@ namespace ChipTracker.Domain.Entities;
 public class GameRoom
 {
     public string RoomCode { get; set; } = string.Empty;
+
+    /// <summary>Monotonic persistence revision for optimistic concurrency; 0 for legacy items.</summary>
+    public long Revision { get; set; }
     public List<Player> Players { get; set; } = [];
     public GameState? CurrentState { get; set; }
     /// <summary>

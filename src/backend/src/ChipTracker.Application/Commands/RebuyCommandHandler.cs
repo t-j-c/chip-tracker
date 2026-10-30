@@ -12,12 +12,12 @@ namespace ChipTracker.Application.Commands;
 public class RebuyCommandHandler : IRequestHandler<RebuyCommand, RebuyResult>
 {
     private readonly IRoomRepository _roomRepository;
-    private readonly IGameNotifier _notifier;
+    private readonly RoomEventDispatcher _events;
 
-    public RebuyCommandHandler(IRoomRepository roomRepository, IGameNotifier notifier)
+    public RebuyCommandHandler(IRoomRepository roomRepository, RoomEventDispatcher events)
     {
         _roomRepository = roomRepository;
-        _notifier = notifier;
+        _events = events;
     }
 
     public async Task<RebuyResult> Handle(RebuyCommand request, CancellationToken cancellationToken)
@@ -32,15 +32,14 @@ public class RebuyCommandHandler : IRequestHandler<RebuyCommand, RebuyResult>
         var result = GameEngine.ApplyRebuy(room.CurrentState, request.PlayerId, room.StartingStack);
         if (!result.IsSuccess)
         {
-            await _notifier.NotifyError("", result.Error ?? "Rebuy failed");
             return new RebuyResult { Success = false, Error = result.Error };
         }
 
         room.PushState(result.Value!);
 
         await _roomRepository.SaveAsync(room, cancellationToken);
-        await _notifier.NotifyGameStateUpdated(request.RoomCode, room.CurrentState);
+        var snapshot = await _events.PublishAsync(RoomEventTypes.GameStateUpdated, room, request.PlayerId, cancellationToken);
 
-        return new RebuyResult { Success = true, GameState = GameStateDto.MapFromDomain(room.CurrentState) };
+        return new RebuyResult { Success = true, Revision = room.Revision, Snapshot = snapshot, GameState = snapshot.GameState };
     }
 }

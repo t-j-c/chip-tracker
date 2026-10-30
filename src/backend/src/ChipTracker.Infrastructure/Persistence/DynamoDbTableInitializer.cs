@@ -10,6 +10,7 @@ public class DynamoDbTableInitializer : IHostedService
     private readonly IAmazonDynamoDB _dynamoDbClient;
     private readonly ILogger<DynamoDbTableInitializer> _logger;
     private const string TableName = "ChipTracker_Rooms";
+    private const string ConnectionsTableName = DynamoDbConnectionRepository.DefaultTableName;
 
     public DynamoDbTableInitializer(IAmazonDynamoDB dynamoDbClient, ILogger<DynamoDbTableInitializer> logger)
     {
@@ -19,25 +20,38 @@ public class DynamoDbTableInitializer : IHostedService
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        await EnsureTableAsync(TableName, [new KeySchemaElement { AttributeName = "RoomCode", KeyType = KeyType.HASH }],
+            [new AttributeDefinition { AttributeName = "RoomCode", AttributeType = ScalarAttributeType.S }],
+            cancellationToken);
+
+        await EnsureTableAsync(ConnectionsTableName,
+            [
+                new KeySchemaElement { AttributeName = "RoomCode", KeyType = KeyType.HASH },
+                new KeySchemaElement { AttributeName = "ConnectionId", KeyType = KeyType.RANGE }
+            ],
+            [
+                new AttributeDefinition { AttributeName = "RoomCode", AttributeType = ScalarAttributeType.S },
+                new AttributeDefinition { AttributeName = "ConnectionId", AttributeType = ScalarAttributeType.S }
+            ],
+            cancellationToken);
+    }
+
+    private async Task EnsureTableAsync(string tableName, List<KeySchemaElement> keySchema,
+        List<AttributeDefinition> attributes, CancellationToken cancellationToken)
+    {
         try
         {
-            await _dynamoDbClient.DescribeTableAsync(TableName, cancellationToken);
-            _logger.LogInformation("DynamoDB table '{TableName}' already exists.", TableName);
+            await _dynamoDbClient.DescribeTableAsync(tableName, cancellationToken);
+            _logger.LogInformation("DynamoDB table '{TableName}' already exists.", tableName);
         }
         catch (ResourceNotFoundException)
         {
-            _logger.LogInformation("Creating DynamoDB table '{TableName}'...", TableName);
+            _logger.LogInformation("Creating DynamoDB table '{TableName}'...", tableName);
             await _dynamoDbClient.CreateTableAsync(new CreateTableRequest
             {
-                TableName = TableName,
-                KeySchema =
-                [
-                    new KeySchemaElement { AttributeName = "RoomCode", KeyType = KeyType.HASH }
-                ],
-                AttributeDefinitions =
-                [
-                    new AttributeDefinition { AttributeName = "RoomCode", AttributeType = ScalarAttributeType.S }
-                ],
+                TableName = tableName,
+                KeySchema = keySchema,
+                AttributeDefinitions = attributes,
                 BillingMode = BillingMode.PAY_PER_REQUEST
             }, cancellationToken);
 
@@ -46,11 +60,11 @@ public class DynamoDbTableInitializer : IHostedService
             while (!active)
             {
                 await Task.Delay(500, cancellationToken);
-                var desc = await _dynamoDbClient.DescribeTableAsync(TableName, cancellationToken);
+                var desc = await _dynamoDbClient.DescribeTableAsync(tableName, cancellationToken);
                 active = desc.Table.TableStatus == TableStatus.ACTIVE;
             }
 
-            _logger.LogInformation("DynamoDB table '{TableName}' created successfully.", TableName);
+            _logger.LogInformation("DynamoDB table '{TableName}' created successfully.", tableName);
         }
     }
 

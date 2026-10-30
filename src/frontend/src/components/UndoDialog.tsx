@@ -16,6 +16,7 @@ export default function UndoDialog({ requestingPlayerName, onApprove, onDecline 
   return (
     <div
       role="alertdialog"
+      data-testid="undo-dialog"
       aria-label="Undo request"
       aria-describedby="undo-banner-desc"
       className="animate-slide-down fixed top-0 left-0 right-0 z-50 bg-surface-elevated border-b border-surface-card shadow-lg px-4 py-3"

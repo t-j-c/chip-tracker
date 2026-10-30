@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using ChipTracker.Application.Commands;
 using ChipTracker.Application.Interfaces;
 using ChipTracker.Domain.Engine;
@@ -11,12 +12,12 @@ namespace ChipTracker.Application.Tests;
 public class ProcessActionCommandHandlerTests
 {
     private readonly IRoomRepository _repo = Substitute.For<IRoomRepository>();
-    private readonly IGameNotifier _notifier = Substitute.For<IGameNotifier>();
+    private readonly IRoomEventPublisher _publisher = Substitute.For<IRoomEventPublisher>();
     private readonly ProcessActionCommandHandler _handler;
 
     public ProcessActionCommandHandlerTests()
     {
-        _handler = new ProcessActionCommandHandler(_repo, _notifier);
+        _handler = new ProcessActionCommandHandler(_repo, new RoomEventDispatcher(_publisher, NullLogger<RoomEventDispatcher>.Instance));
     }
 
     private static GameRoom MakeStartedRoom(int stack1 = 1000, int stack2 = 1000)
@@ -108,7 +109,7 @@ public class ProcessActionCommandHandlerTests
 
         result.Success.Should().BeTrue();
         await _repo.Received(1).SaveAsync(room, Arg.Any<CancellationToken>());
-        await _notifier.Received(1).NotifyGameStateUpdated("ABC123", Arg.Any<GameState>());
+        await _publisher.Received(1).PublishAsync(Arg.Is<RoomEvent>(e => e.Type == RoomEventTypes.GameStateUpdated && e.RoomCode == "ABC123"), Arg.Any<CancellationToken>());
     }
 
     [Fact]

@@ -8,6 +8,7 @@ namespace ChipTracker.Infrastructure.Persistence;
 public static class RoomDocumentSerializer
 {
     public const string ExpirationAttribute = "ExpirationTime";
+    public const string RevisionAttribute = nameof(GameRoom.Revision);
 
     /// <summary>Stay safely below DynamoDB's 400 KB item limit.</summary>
     public const int MaxJsonBytes = 350 * 1024;

@@ -23,7 +23,8 @@ services:
       - RateLimiting__CreateRoomPerMinute=10000
       - RateLimiting__JoinPerMinute=10000
       - RateLimiting__ReadPerMinute=10000
-      - RateLimiting__HubConnectPerMinute=10000
+      - RateLimiting__CommandBurst=10000
+      - RateLimiting__CommandsPerSecond=10000
     depends_on:
       - dynamodb-local
     networks:

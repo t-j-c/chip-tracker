@@ -19,29 +19,13 @@ public class GetRoomQueryHandler : IRequestHandler<GetRoomQuery, GetRoomResult>
         if (room == null)
             return new GetRoomResult { Success = false, Error = "Room not found" };
 
-        var roomInfo = new RoomInfoDto
+        var snapshot = RoomSnapshot.From(room);
+        return new GetRoomResult
         {
-            RoomCode = room.RoomCode,
-            Players = room.Players.Select(p => new PlayerDto
-            {
-                PlayerId = p.PlayerId,
-                Name = p.Name,
-                Stack = p.Stack,
-                CurrentBet = p.CurrentBet,
-                HasFolded = p.HasFolded,
-                IsAllIn = p.IsAllIn,
-                IsDealer = p.IsDealer
-            }).ToList(),
-            StartingStack = room.StartingStack,
-            SmallBlind = room.SmallBlind,
-            BigBlind = room.BigBlind,
-            MaxPlayers = room.MaxPlayers,
-            IsGameStarted = room.IsGameStarted,
-            CreatorPlayerId = room.CreatorPlayerId
+            Success = true,
+            Revision = snapshot.Revision,
+            GameState = snapshot.GameState,
+            RoomInfo = snapshot.RoomInfo
         };
-
-        var gameState = room.IsGameStarted ? GameStateDto.MapFromDomain(room) : null;
-
-        return new GetRoomResult { Success = true, GameState = gameState, RoomInfo = roomInfo };
     }
 }

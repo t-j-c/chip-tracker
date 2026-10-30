@@ -1,287 +1,106 @@
-# Chip Tracker AWS CDK Infrastructure
+# Chip Tracker Infrastructure (AWS CDK)
 
-Infrastructure-as-Code for Chip Tracker application using AWS CDK (TypeScript).
+Serverless production stack for `https://deal-me-in.com`. The design, costs and rollout plan are in [planning/MVP/deployment-plan.md](../planning/MVP/deployment-plan.md).
 
-## Architecture
+```
+Route 53 (deal-me-in.com) ─► CloudFront (ACM cert, PriceClass_100)
+                              ├─ default → S3 (private, OAC) + CloudFront Function SPA rewrite
+                              ├─ /api/*  → API Gateway HTTP API ($default, throttled) → Lambda "Api" (ASP.NET Core)
+                              └─ /ws     → API Gateway WebSocket API (stage "ws", throttled)
+                                             ├─ $connect → Lambda "WsConnect"
+                                             └─ $default → MOCK (keep-alive ping)
+DynamoDB: Rooms (RETAIN, TTL) + Connections (TTL)
+Ops: CloudWatch alarms → SNS email, $5/mo AWS Budget, 14-day logs, tag app=chip-tracker
+```
 
-### Services
+At family scale this costs about **$0.55/month**, almost all of it the Route 53 hosted zone. There is no VPC, NAT, load balancer, ECS or ECR.
 
-**Compute:**
-- ECS Fargate cluster running backend service
-- Auto-scaling based on CPU/memory utilization
-- CloudWatch logs for monitoring
+## Layout
 
-**Networking:**
-- Application Load Balancer (ALB) for backend
-- CloudFront CDN distribution for global acceleration
-- VPC with public/private subnets
+| File | Purpose |
+|---|---|
+| `src/index.ts` | CDK app for the production stack `chip-tracker-prod` (always us-east-1) |
+| `src/config.ts` | Reads and validates CDK context |
+| `src/stack.ts` | The stack |
+| `src/oidc-app.ts`, `src/oidc-stack.ts` | One-time bootstrap: GitHub Actions OIDC provider + deploy role |
+| `test/stack.test.ts` | Jest assertion tests (`npm test`) |
 
-**Database:**
-- DynamoDB table for game room state
-- TTL enabled for automatic cleanup
-- Point-in-time recovery in production
+## Configuration
 
-**Container Registry:**
-- ECR repositories for backend and frontend images
-- Image scanning enabled
+Committed in [cdk.json](./cdk.json) `context`:
 
-**Storage:**
-- S3 bucket for frontend assets (optional)
+| Key | Default | Notes |
+|---|---|---|
+| `domainName` | `deal-me-in.com` | CloudFront alias + ACM certificate |
+| `hostedZoneId` / `hostedZoneName` | `Z0347011UK8LW7XIFFUB` / `deal-me-in.com` | Existing Route 53 zone (no lookups) |
+| `monthlyBudgetUsd` | `5` | Emails at 80% actual and 100% forecast |
+| `apiMemoryMb` | `1769` | One full vCPU; chosen in spike S2 for cold starts under 2 s |
+| `httpThrottle` | `{"rateLimit":25,"burstLimit":50}` | HTTP API stage throttle: the global cost/abuse cap |
+| `wsThrottle` | `{"rateLimit":10,"burstLimit":20}` | WebSocket stage throttle |
 
-## Prerequisites
+**Not committed**, because the repo is public:
 
-1. **AWS Account** with credentials configured
-   ```bash
-   aws configure
-   ```
+| Key | How to supply it |
+|---|---|
+| `alertEmail` (required) | `-c alertEmail=you@example.com`. CI uses the GitHub variable `ALERT_EMAIL`. Synth fails if it is missing. |
 
-2. **Node.js 18+** and npm
+Any key can be overridden with `-c key=value`, e.g. `-c httpThrottle='{"rateLimit":50,"burstLimit":100}'`.
 
-3. **AWS CDK CLI**
-   ```bash
-   npm install -g aws-cdk
-   ```
+The optional context keys `apiAssetPath` and `wsConnectAssetPath` default to `artifacts/lambda/api` and `artifacts/lambda/ws-connect` (relative to the repo root).
 
-4. **Docker** (for building and pushing images)
+## Build, test, synth
 
-## Setup
-
-### 1. Install Dependencies
-
-```bash
+```powershell
+pwsh scripts/publish-lambdas.ps1   # from the repo root: linux-arm64 ReadyToRun bundles → artifacts/lambda/
 cd infra
-npm install
+npm ci
+npm run build                      # type-check
+npm test                           # assertion tests (no AWS access or bundles needed)
+npx cdk synth -c alertEmail=you@example.com
 ```
 
-### 2. Configure Environment
+## Deploy
 
-Copy `.env.example` to `.env` and update:
+Normal deploys run from GitHub Actions on merge to `main` (deployment plan Phase 3). For a manual deploy with admin credentials:
 
-```bash
-cp .env.example .env
+```powershell
+pwsh scripts/deploy-infra.ps1 -AlertEmail you@example.com             # publish bundles, diff, deploy
+pwsh scripts/deploy-infra.ps1 -AlertEmail you@example.com -NoDeploy   # publish bundles, synth + diff only
 ```
 
-Edit `.env`:
-```
-AWS_REGION=us-east-1
-AWS_ACCOUNT=123456789012  # Your AWS Account ID
-CDK_ENV=dev               # dev or prod
-```
+`cdk deploy` uploads both Lambda bundles, so infra and backend code ship together. The SPA is uploaded separately:
 
-### 3. Bootstrap AWS Account (First Time Only)
-
-```bash
-cdk bootstrap aws://123456789012/us-east-1
+```powershell
+cd src/frontend; npm ci; npm run build
+aws s3 sync dist s3://<FrontendBucketName> --delete --cache-control "public,max-age=31536000,immutable" --exclude index.html
+aws s3 cp dist/index.html s3://<FrontendBucketName>/index.html --cache-control "no-cache"
+aws cloudfront create-invalidation --distribution-id <DistributionId> --paths /index.html
 ```
 
-## Deployment
+Stack outputs: `SiteUrl`, `DistributionId`, `FrontendBucketName`, `ApiFunctionName`, `WsConnectFunctionName`, `HttpApiId`, `WebSocketApiId`, `RoomsTableName`, `ConnectionsTableName`.
 
-### Develop Environment
+### One-time bootstrap (first deploy only)
 
-```bash
-# Build TypeScript
-npm run build
+See [deployment plan Phase 4](../planning/MVP/deployment-plan.md):
 
-# Synthesize CloudFormation template
-npm run synth
+1. `npx cdk bootstrap aws://<account>/us-east-1`.
+2. `npx cdk deploy --app "npx ts-node src/oidc-app.ts" -c githubRepo=t-j-c/chip-tracker`. If the account already has a GitHub OIDC provider (`aws iam list-open-id-connect-providers`), add `-c oidcProviderArn=<that arn>` to reuse it.
+3. Put the `DeployRoleArn` output into the GitHub secret `AWS_ROLE_TO_ASSUME`.
+4. Create the GitHub environment `production` and the variables `AWS_REGION`, `SITE_DOMAIN`, `ALERT_EMAIL`.
+5. The first deploy waits for ACM DNS validation, about 5–30 min.
+6. Confirm the SNS subscription email.
+7. Activate the `app` cost allocation tag. The budget only counts spend tagged `app=chip-tracker`, and reports $0 until the tag is active. The tag appears in Billing about 24 h after the first tagged resource exists.
 
-# Preview changes
-npm run diff
+## Runbook
 
-# Deploy
-npm run deploy
-```
+| Task | How |
+|---|---|
+| Deploy | Merge to `main`. |
+| Roll back | Dispatch `deploy.yml` with `ref=<good commit>`. |
+| Logs | `aws logs tail /aws/lambda/<ApiFunctionName> --follow` (same for `<WsConnectFunctionName>`). |
+| **Kill switch** (runaway cost or abuse) | `aws lambda put-function-concurrency --function-name <ApiFunctionName> --reserved-concurrent-executions 0`, and the same for `WsConnect`. Undo with `aws lambda delete-function-concurrency --function-name <name>`. |
+| Raise limits | Edit `httpThrottle` / `wsThrottle` / `apiMemoryMb` in `cdk.json` and merge. |
+| Inspect or clear a room | `aws dynamodb get-item` / `delete-item --table-name <RoomsTableName> --key '{"RoomCode":{"S":"ABC123"}}'` |
+| Cost check | The budget email, or Cost Explorer filtered by tag `app=chip-tracker`. |
 
-### Production Environment
-
-```bash
-npm run deploy:prod
-```
-
-## After Deployment
-
-### 1. Build and Push Docker Images
-
-**Backend:**
-```bash
-cd ../src/backend
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <backend-ecr-uri>
-docker build -t chip-tracker-backend:latest .
-docker tag chip-tracker-backend:latest <backend-ecr-uri>:latest
-docker push <backend-ecr-uri>:latest
-```
-
-**Frontend:**
-```bash
-cd ../frontend
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <frontend-ecr-uri>
-docker build -t chip-tracker-frontend:latest .
-docker tag chip-tracker-frontend:latest <frontend-ecr-uri>:latest
-docker push <frontend-ecr-uri>:latest
-```
-
-### 2. Verify Deployment
-
-```bash
-# Get stack outputs
-aws cloudformation describe-stacks --stack-name chip-tracker-dev --region us-east-1 | jq '.Stacks[0].Outputs'
-
-# Check ECS service
-aws ecs describe-services \
-  --cluster chip-tracker-cluster \
-  --services chip-tracker-backend \
-  --region us-east-1
-```
-
-### 3. Monitor Application
-
-**CloudWatch Logs:**
-```bash
-# Backend logs
-aws logs tail /ecs/chip-tracker/backend --follow --region us-east-1
-```
-
-**CloudWatch Metrics:**
-- Visit AWS Console → CloudWatch → Dashboards
-- View ECS service metrics (CPU, memory, task count)
-
-## Infrastructure Details
-
-### Stack Components
-
-#### DynamoDB Table
-- **Name**: `chip-tracker-rooms`
-- **Partition Key**: `RoomCode` (String)
-- **Billing**: Pay-per-request
-- **TTL**: Automatic cleanup of expired games
-- **Backup**: Point-in-time recovery (prod only)
-
-#### ECS Cluster
-- **Name**: `chip-tracker-cluster`
-- **Launch Type**: Fargate
-- **Desired Count**: 1 (dev) / 2 (prod)
-- **CPU**: 512 (dev) / 1024 (prod)
-- **Memory**: 1024 MiB (dev) / 2048 MiB (prod)
-- **Container Insights**: Enabled
-
-#### Load Balancer
-- **Type**: Application Load Balancer
-- **Scheme**: Internet-facing
-- **Health Check**: `/health` endpoint
-  - Interval: 30s
-  - Timeout: 10s
-  - Healthy threshold: 2
-  - Unhealthy threshold: 3
-
-#### Auto-Scaling Policies
-- **Min Tasks**: 1 (dev) / 2 (prod)
-- **Max Tasks**: 2 (dev) / 4 (prod)
-- **CPU Target**: 70%
-- **Memory Target**: 80%
-
-#### CloudFront Distribution
-- **Origins**: ALB (backend)
-- **Cache Behaviors**:
-  - `/api/*` - No caching, all HTTP methods
-  - `/hubs/*` - No caching, all HTTP methods (SignalR)
-  - Default - Cached, optimized for static assets
-- **Error Handling**: 404 → /index.html (SPA routing)
-
-## Common Tasks
-
-### Scale Service
-
-```bash
-# Set desired count
-aws ecs update-service \
-  --cluster chip-tracker-cluster \
-  --service chip-tracker-backend \
-  --desired-count 3 \
-  --region us-east-1
-```
-
-### Update Image
-
-```bash
-# Force new task deployment
-aws ecs update-service \
-  --cluster chip-tracker-cluster \
-  --service chip-tracker-backend \
-  --force-new-deployment \
-  --region us-east-1
-```
-
-### View Logs
-
-```bash
-# Real-time logs
-aws logs tail /ecs/chip-tracker/backend --follow
-
-# Last 100 lines
-aws logs tail /ecs/chip-tracker/backend --max-items 100
-```
-
-### Destroy Infrastructure
-
-**⚠️ WARNING: This will delete all resources**
-
-```bash
-npm run destroy
-```
-
-## Costs
-
-### Estimated Monthly (Development)
-
-- **ECS Fargate**: ~$10-15 (1 task × 512 CPU, 1GB RAM)
-- **ALB**: ~$16
-- **DynamoDB**: ~$1-5 (pay-per-request)
-- **NAT Gateway**: ~$32
-- **CloudFront**: Minimal for low traffic
-- **Data Transfer**: Minimal
-
-**Total**: ~$60-80/month
-
-### Estimated Monthly (Production)
-
-- **ECS Fargate**: ~$30-40 (2-3 tasks)
-- **ALB**: ~$16
-- **DynamoDB**: ~$10-20
-- **NAT Gateways**: ~$64 (2 gateways)
-- **CloudFront**: Depends on traffic
-
-**Total**: ~$150-250/month
-
-## Troubleshooting
-
-### Tasks failing to start
-
-```bash
-# Check task logs
-aws ecs describe-tasks \
-  --cluster chip-tracker-cluster \
-  --tasks <task-arn> \
-  --region us-east-1
-```
-
-### Cannot connect to backend
-
-1. Verify security group rules allow ALB → backend on port 5000
-2. Check ALB target group health checks
-3. Verify ECS task is running (desired count = running count)
-4. Check CloudWatch logs
-
-### DynamoDB permission errors
-
-```bash
-# Verify IAM role has DynamoDB permissions
-aws iam get-role-policy \
-  --role-name chip-tracker-devChipTrackerStackBackendTaskDefTaskRole-XXX \
-  --policy-name DynamoDBAccess
-```
-
-## References
-
-- [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/)
-- [ECS on Fargate](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ECS_on_Fargate.html)
-- [DynamoDB Pricing](https://aws.amazon.com/dynamodb/pricing/)
+The `Rooms` table is retained if the stack is deleted (`RemovalPolicy.RETAIN`). The connections table, bucket and logs are deleted.

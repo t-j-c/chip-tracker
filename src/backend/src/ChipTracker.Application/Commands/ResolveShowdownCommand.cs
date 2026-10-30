@@ -3,7 +3,7 @@ using MediatR;
 
 namespace ChipTracker.Application.Commands;
 
-public class ResolveShowdownCommand : IRequest<ResolveShowdownResult>
+public class ResolveShowdownCommand : IRequest<ResolveShowdownResult>, IRoomCommand
 {
     public string RoomCode { get; set; } = string.Empty;
     /// <summary>Winner's player ID. Ignored when IsSplit is true or Awards is non-empty.</summary>
@@ -21,6 +21,8 @@ public class ResolveShowdownCommand : IRequest<ResolveShowdownResult>
 public class ResolveShowdownResult
 {
     public bool Success { get; set; }
+    public long Revision { get; set; }
+    public ChipTracker.Application.DTOs.RoomSnapshot? Snapshot { get; set; }
     public string? Error { get; set; }
     public object? GameState { get; set; }
 }

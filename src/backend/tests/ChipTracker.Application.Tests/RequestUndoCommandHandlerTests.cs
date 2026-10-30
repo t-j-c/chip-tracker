@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using ChipTracker.Application.Commands;
 using ChipTracker.Application.Interfaces;
 using ChipTracker.Domain.Entities;
@@ -9,12 +10,12 @@ namespace ChipTracker.Application.Tests;
 public class RequestUndoCommandHandlerTests
 {
     private readonly IRoomRepository _repo = Substitute.For<IRoomRepository>();
-    private readonly IGameNotifier _notifier = Substitute.For<IGameNotifier>();
+    private readonly IRoomEventPublisher _publisher = Substitute.For<IRoomEventPublisher>();
     private readonly RequestUndoCommandHandler _handler;
 
     public RequestUndoCommandHandlerTests()
     {
-        _handler = new RequestUndoCommandHandler(_repo, _notifier);
+        _handler = new RequestUndoCommandHandler(_repo, new RoomEventDispatcher(_publisher, NullLogger<RoomEventDispatcher>.Instance));
     }
 
     [Fact]

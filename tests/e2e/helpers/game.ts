@@ -6,6 +6,19 @@ export interface CreateRoomOptions {
   bigBlind?: number;
 }
 
+// Deployed environments keep production rate limits (create-room: 10/min per IP), unlike docker compose.
+const ROOM_CREATE_INTERVAL_MS = Number(
+  process.env.E2E_ROOM_CREATE_INTERVAL_MS ?? (process.env.E2E_BASE_URL ? 6_500 : 0),
+);
+let lastRoomCreateAt = 0;
+
+/** Spaces out room creations so remote runs stay under the create-room rate limit. */
+export async function paceRoomCreation(): Promise<void> {
+  const waitMs = lastRoomCreateAt + ROOM_CREATE_INTERVAL_MS - Date.now();
+  if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+  lastRoomCreateAt = Date.now();
+}
+
 /**
  * Navigate to the create-room page, fill the form (no player names), submit,
  * and return the room code. After this call the page is at /room/CODE/lobby.
@@ -17,6 +30,7 @@ export async function createRoom(page: Page, opts: CreateRoomOptions = {}): Prom
     bigBlind = 20,
   } = opts;
 
+  await paceRoomCreation();
   await page.goto('/');
 
   // Use a preset button if the values match one — avoids opening the collapsible custom section.

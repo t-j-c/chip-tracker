@@ -10,12 +10,12 @@ namespace ChipTracker.Application.Commands;
 public class ResolveShowdownCommandHandler : IRequestHandler<ResolveShowdownCommand, ResolveShowdownResult>
 {
     private readonly IRoomRepository _roomRepository;
-    private readonly IGameNotifier _notifier;
+    private readonly RoomEventDispatcher _events;
 
-    public ResolveShowdownCommandHandler(IRoomRepository roomRepository, IGameNotifier notifier)
+    public ResolveShowdownCommandHandler(IRoomRepository roomRepository, RoomEventDispatcher events)
     {
         _roomRepository = roomRepository;
-        _notifier = notifier;
+        _events = events;
     }
 
     public async Task<ResolveShowdownResult> Handle(ResolveShowdownCommand request, CancellationToken cancellationToken)
@@ -61,8 +61,8 @@ public class ResolveShowdownCommandHandler : IRequestHandler<ResolveShowdownComm
         room.PushState(newState);
 
         await _roomRepository.SaveAsync(room, cancellationToken);
-        await _notifier.NotifyGameStateUpdated(request.RoomCode, room.CurrentState);
+        var snapshot = await _events.PublishAsync(RoomEventTypes.GameStateUpdated, room, null, cancellationToken);
 
-        return new ResolveShowdownResult { Success = true, GameState = GameStateDto.MapFromDomain(room) };
+        return new ResolveShowdownResult { Success = true, Revision = room.Revision, Snapshot = snapshot, GameState = snapshot.GameState };
     }
 }
