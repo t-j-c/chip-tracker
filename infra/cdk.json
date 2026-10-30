@@ -1,0 +1,16 @@
+{
+  "app": "npx ts-node src/index.ts",
+  "watch": {
+    "include": ["src/**"],
+    "exclude": ["node_modules", "lib", "test"]
+  },
+  "context": {
+    "domainName": "deal-me-in.com",
+    "hostedZoneId": "Z0347011UK8LW7XIFFUB",
+    "hostedZoneName": "deal-me-in.com",
+    "monthlyBudgetUsd": 5,
+    "apiMemoryMb": 1769,
+    "httpThrottle": { "rateLimit": 25, "burstLimit": 50 },
+    "wsThrottle": { "rateLimit": 10, "burstLimit": 20 }
+  }
+}
