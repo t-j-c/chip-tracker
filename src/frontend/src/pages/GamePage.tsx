@@ -128,7 +128,7 @@ export default function GamePage() {
     return (
       <div className="flex items-center justify-center h-[100dvh] bg-surface-bg">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-text-primary mb-4">Chip Tracker</h1>
+          <h1 className="text-3xl font-bold text-text-primary mb-4">Deal Me In</h1>
           <p className="text-text-secondary">Connecting to game...</p>
           {error && <p className="text-accent-danger mt-4 text-sm">{error}</p>}
         </div>
