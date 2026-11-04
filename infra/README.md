@@ -1,4 +1,4 @@
-# Chip Tracker Infrastructure (AWS CDK)
+# Deal Me In Infrastructure (AWS CDK)
 
 Serverless production stack for `https://deal-me-in.com`. The design, costs and rollout plan are in [planning/MVP/deployment-plan.md](../planning/MVP/deployment-plan.md).
 

@@ -87,7 +87,7 @@ export default function LobbyPage() {
     try {
       const nav = navigator as Navigator & { share?: (data: ShareData) => Promise<void> };
       if (nav.share) {
-        await nav.share({ title: 'Join my Chip Tracker game', url: joinUrl });
+        await nav.share({ title: 'Join my Deal Me In game', url: joinUrl });
       } else {
         await navigator.clipboard.writeText(joinUrl);
         setCopied(true);

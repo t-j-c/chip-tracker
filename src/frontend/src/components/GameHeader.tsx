@@ -49,7 +49,7 @@ export default function GameHeader({
   return (
     <header className="flex items-center justify-between px-4 py-2 bg-surface-card border-b border-surface-elevated flex-shrink-0">
       {/* Brand */}
-      <span className="text-sm font-bold text-text-primary">Chip Tracker</span>
+      <span className="text-sm font-bold text-text-primary">Deal Me In</span>
 
       {/* Center: room code + undo pending */}
       <div className="flex items-center gap-2">

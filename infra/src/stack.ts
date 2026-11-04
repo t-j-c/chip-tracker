@@ -246,7 +246,7 @@ export class ChipTrackerStack extends cdk.Stack {
     new route53.AaaaRecord(this, 'SiteAaaaRecord', { zone, recordName: props.domainName, target: aliasTarget });
 
     // ── Guardrails & ops ────────────────────────────────────────────────────
-    const alertTopic = new sns.Topic(this, 'AlertTopic', { displayName: 'Chip Tracker alerts' });
+    const alertTopic = new sns.Topic(this, 'AlertTopic', { displayName: 'Deal Me In alerts' });
     alertTopic.addSubscription(new subscriptions.EmailSubscription(props.alertEmail));
     const alarmAction = new cwActions.SnsAction(alertTopic);
     const period = cdk.Duration.minutes(5);

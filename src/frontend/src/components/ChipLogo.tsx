@@ -23,7 +23,7 @@ export default function ChipLogo({ subtitle }: ChipLogoProps) {
         ))}
       </svg>
       <h1 className="text-2xl font-bold text-text-primary tracking-tight">
-        {subtitle ?? 'Chip Tracker'}
+        {subtitle ?? 'Deal Me In'}
       </h1>
     </div>
   );
