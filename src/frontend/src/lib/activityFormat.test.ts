@@ -225,6 +225,34 @@ describe('activityFormat', () => {
       expect(result).toBe('Bob was refunded $75 (uncalled bet)')
     })
 
+    it('formats SeatsReordered', () => {
+      const result = formatActivityEntry({
+        sequence: 16,
+        entryType: 'SeatsReordered',
+        playerId: 'player1',
+        amount: 0,
+        stateVersion: 1,
+        isUndone: false,
+        playerName: 'Alice',
+        handNumber: 2,
+      })
+      expect(result).toBe('Alice changed the seating order')
+    })
+
+    it('formats HandRestarted', () => {
+      const result = formatActivityEntry({
+        sequence: 17,
+        entryType: 'HandRestarted',
+        playerId: 'player1',
+        amount: 0,
+        stateVersion: 1,
+        isUndone: false,
+        playerName: 'Alice',
+        handNumber: 2,
+      })
+      expect(result).toBe('Alice restarted the hand (all bets returned)')
+    })
+
     it('formats large amounts with locale string', () => {
       const result = formatActivityEntry({
         sequence: 16,

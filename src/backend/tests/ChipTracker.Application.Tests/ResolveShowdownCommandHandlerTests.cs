@@ -123,6 +123,22 @@ public class ResolveShowdownCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_AlreadyResolvedAndWaitingOnRebuy_RejectsSecondResolution()
+    {
+        // Every phone shows the showdown dialog; a late tap after the hand was resolved used to
+        // be accepted while the next hand waited on a rebuy decision, rotating the dealer again.
+        var room = MakeRoomAtShowdown(viaAllIn: true);
+        _repo.GetByRoomCodeAsync("ABC123", Arg.Any<CancellationToken>()).Returns(room);
+        await _handler.Handle(new ResolveShowdownCommand { RoomCode = "ABC123", WinnerPlayerId = "p1" }, CancellationToken.None);
+        var dealerAfterFirst = room.CurrentState!.DealerIndex;
+
+        var second = await _handler.Handle(new ResolveShowdownCommand { RoomCode = "ABC123", WinnerPlayerId = "p1" }, CancellationToken.None);
+
+        second.Success.Should().BeFalse();
+        room.CurrentState!.DealerIndex.Should().Be(dealerAfterFirst);
+    }
+
+    [Fact]
     public async Task Handle_UnknownWinner_ReturnsError()
     {
         var room = MakeRoomAtShowdown();

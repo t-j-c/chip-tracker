@@ -129,6 +129,9 @@ public static class GameEngine
             return Result<GameState>.Failure("No bet to call");
 
         var amountToCall = state.CurrentBet - requestingPlayer.CurrentBet;
+        if (amountToCall < 0)
+            return Result<GameState>.Failure("Nothing to call - check instead");
+
         var newState = state.Clone();
         var player = newState.Players.First(p => p.PlayerId == requestingPlayer.PlayerId);
 
@@ -409,8 +412,11 @@ public static class GameEngine
 
     /// <summary>
     /// True when no further betting can occur this hand: either nobody remains able to act
-    /// (everyone left is all-in), or exactly one player can still act and they owe nothing
-    /// (there's no one left who could respond to a further bet).
+    /// (everyone left is all-in), or exactly one player can still act and they aren't facing
+    /// a bet from anyone still in the hand (there's no one left who could respond to a further
+    /// bet). The opposing bet is capped at <see cref="GameState.CurrentBet"/> because all-in
+    /// players keep their earlier-street bet on display, and an all-in big blind shorter than
+    /// the full blind leaves CurrentBet above anything actually wagered.
     /// </summary>
     private static bool NoFurtherBettingPossible(GameState state)
     {
@@ -420,10 +426,25 @@ public static class GameEngine
             return true;
 
         if (ableToAct.Count == 1)
-            return ableToAct[0].CurrentBet == state.CurrentBet;
+        {
+            var actor = ableToAct[0];
+            var highestOpposingBet = state.Players
+                .Where(p => !p.HasFolded && p.PlayerId != actor.PlayerId)
+                .Select(p => p.CurrentBet)
+                .DefaultIfEmpty(0)
+                .Max();
+            return actor.CurrentBet >= Math.Min(state.CurrentBet, highestOpposingBet);
+        }
 
         return false;
     }
+
+    /// <summary>
+    /// True while a hand is being played or has ended at Showdown and is awaiting its winner(s).
+    /// No new hand may be dealt in either case.
+    /// </summary>
+    private static bool IsHandInProgress(GameState state) =>
+        state.IsHandActive || state.Phase == GamePhase.Showdown;
 
     /// <summary>
     /// Ends the hand immediately without playing out remaining streets one action at a time
@@ -556,7 +577,8 @@ public static class GameEngine
     /// <summary>
     /// Refunds the uncalled portion of a bet: if exactly one in-hand player has contributed
     /// more (across the whole hand) than every other in-hand player, the excess over the
-    /// next-highest contribution is returned to their stack and removed from the pot.
+    /// highest contribution by anyone else is returned to their stack and removed from the pot.
+    /// Folded players count: their chips called the bet up to what they put in before folding.
     /// </summary>
     private static void RefundUncalledBet(GameState state)
     {
@@ -569,17 +591,17 @@ public static class GameEngine
         if (topContributors.Count != 1)
             return; // tie for the top contribution - nothing uncalled
 
-        var secondHighest = inHand
-            .Where(p => p.TotalContributed < maxContribution)
+        var bettor = topContributors[0];
+        var highestMatched = state.Players
+            .Where(p => p.PlayerId != bettor.PlayerId)
             .Select(p => p.TotalContributed)
             .DefaultIfEmpty(0)
             .Max();
 
-        var excess = maxContribution - secondHighest;
+        var excess = maxContribution - highestMatched;
         if (excess <= 0)
             return;
 
-        var bettor = topContributors[0];
         bettor.Stack += excess;
         bettor.CurrentBet -= excess;
         bettor.TotalContributed -= excess;
@@ -695,20 +717,44 @@ public static class GameEngine
         state.Players.Where(p => !p.IsEliminated).ToList();
 
     /// <summary>
+    /// A hand can be dealt once at least two seats are occupied and nobody seated still has a
+    /// rebuy decision to make.
+    /// </summary>
+    private static bool CanDealHand(GameState state)
+    {
+        var seated = SeatedPlayers(state);
+        return seated.Count >= 2 && !seated.Any(p => p.IsAwaitingRebuy);
+    }
+
+    /// <summary>
     /// Common "end of hand" bookkeeping shared by <see cref="ResolveShowdown"/>,
-    /// <see cref="ResolveSplitPot"/>, and <see cref="AwardPots"/>: rotates the dealer, resets
-    /// every player's per-hand state (marking anyone who busted to zero as awaiting a rebuy
-    /// decision, and permanently folding eliminated players out of the deal), then attempts to
-    /// start the next hand.
+    /// <see cref="ResolveSplitPot"/>, and <see cref="AwardPots"/>: applies any pending seating
+    /// change, rotates the dealer, resets every player's per-hand state (marking anyone who
+    /// busted to zero as awaiting a rebuy decision, and permanently folding eliminated players
+    /// out of the deal), then attempts to start the next hand.
     /// </summary>
     private static void EndHandBookkeeping(GameState state)
     {
+        // Seat first so the button moves to the left of the previous dealer in the new order.
+        ApplyPendingSeatOrder(state);
         state.DealerIndex = AdvanceToNextSeated(state, state.DealerIndex);
 
         state.CurrentBet = 0;
         state.MinRaise = state.BigBlind;
         state.Phase = GamePhase.PreFlop;
+        state.IsHandActive = false;
+        state.ActivePlayerTurnId = null;
 
+        ResetPlayersForNewHand(state);
+        TryStartHand(state);
+    }
+
+    /// <summary>
+    /// Clears every player's per-hand state ahead of a new deal. Eliminated players stay folded
+    /// out; anyone left with no chips is marked as awaiting a rebuy decision.
+    /// </summary>
+    private static void ResetPlayersForNewHand(GameState state)
+    {
         foreach (var player in state.Players)
         {
             if (player.IsEliminated)
@@ -732,20 +778,20 @@ public static class GameEngine
             player.HasActedThisStreet = false;
             player.IsDealer = player.PlayerId == state.Players[state.DealerIndex].PlayerId;
         }
-
-        TryStartHand(state);
     }
 
     /// <summary>
-    /// Starts the next hand (posts blinds) only if every seated player has resolved any pending
-    /// rebuy decision and at least two seats are occupied. Otherwise leaves the hand inactive
-    /// with no active player, so the table waits for the pending decision(s) or more players.
+    /// Starts the next hand (posts blinds) only if no hand is already in progress, every seated
+    /// player has resolved any pending rebuy decision, and at least two seats are occupied.
+    /// Otherwise leaves the table waiting for the pending decision(s) or more players.
     /// </summary>
     private static void TryStartHand(GameState state)
     {
-        var seated = SeatedPlayers(state);
+        // Never deal over a hand that is still being played or awaiting its showdown result.
+        if (IsHandInProgress(state))
+            return;
 
-        if (seated.Any(p => p.IsAwaitingRebuy) || seated.Count < 2)
+        if (!CanDealHand(state))
         {
             state.IsHandActive = false;
             state.ActivePlayerTurnId = null;
@@ -753,7 +799,11 @@ public static class GameEngine
         }
 
         if (state.Players[state.DealerIndex].IsEliminated)
+        {
             state.DealerIndex = AdvanceToNextSeated(state, state.DealerIndex);
+            foreach (var player in state.Players)
+                player.IsDealer = player.PlayerId == state.Players[state.DealerIndex].PlayerId;
+        }
 
         state.IsHandActive = true;
         state.HandNumber++;
@@ -764,6 +814,7 @@ public static class GameEngine
         });
 
         PostBlinds(state);
+        CompleteAction(state);
     }
 
     /// <summary>
@@ -784,8 +835,9 @@ public static class GameEngine
     /// <summary>
     /// Applies a rebuy: restores the requesting player's stack to <paramref name="amount"/> and
     /// clears both the awaiting-rebuy and eliminated flags (so an eliminated player can buy back
-    /// in at any time, not just one who just busted). Starts the next hand if this was the last
-    /// pending decision.
+    /// in at any time, not just one who just busted). An eliminated player buying back in while
+    /// a hand is in progress sits that hand out and is dealt into the next one. Starts the next
+    /// hand if this was the last pending decision.
     /// </summary>
     public static Result<GameState> ApplyRebuy(GameState state, string playerId, int amount)
     {
@@ -801,7 +853,7 @@ public static class GameEngine
         target.Stack = amount;
         target.IsAwaitingRebuy = false;
         target.IsEliminated = false;
-        target.HasFolded = false;
+        target.HasFolded = IsHandInProgress(newState);
 
         Emit(newState, new ActivityEntry
         {
@@ -845,6 +897,108 @@ public static class GameEngine
             PlayerId = playerId
         });
 
+        TryStartHand(newState);
+
+        return Result<GameState>.Success(newState);
+    }
+
+    /// <summary>
+    /// True when <paramref name="orderedPlayerIds"/> lists every one of <paramref name="players"/>
+    /// exactly once.
+    /// </summary>
+    public static bool IsValidSeatOrder(IReadOnlyCollection<Player> players, IReadOnlyList<string> orderedPlayerIds) =>
+        orderedPlayerIds.Count == players.Count
+        && orderedPlayerIds.Distinct().Count() == players.Count
+        && players.All(p => orderedPlayerIds.Contains(p.PlayerId));
+
+    /// <summary>
+    /// Changes the seating order (clockwise: the dealer button and the action move to the next
+    /// seat in this order). While a hand is in progress the change is held in
+    /// <see cref="GameState.PendingSeatOrder"/> and applied when the next hand is dealt;
+    /// otherwise it applies immediately. Either way the dealer button stays with the same
+    /// player. Mutates <paramref name="state"/> in place, and emits a
+    /// <see cref="ActivityEntryType.SeatsReordered"/> entry when
+    /// <paramref name="requestedByPlayerId"/> is given. Returns false (and changes nothing) if
+    /// the order isn't a permutation of the players.
+    /// </summary>
+    public static bool ApplySeatOrder(GameState state, IReadOnlyList<string> orderedPlayerIds, string? requestedByPlayerId = null)
+    {
+        if (!IsValidSeatOrder(state.Players, orderedPlayerIds))
+            return false;
+
+        if (IsHandInProgress(state))
+        {
+            var unchanged = state.Players.Select(p => p.PlayerId).SequenceEqual(orderedPlayerIds);
+            state.PendingSeatOrder = unchanged ? null : orderedPlayerIds.ToList();
+        }
+        else
+        {
+            ReorderPlayers(state, orderedPlayerIds);
+            state.PendingSeatOrder = null;
+        }
+
+        if (requestedByPlayerId != null)
+        {
+            Emit(state, new ActivityEntry
+            {
+                EntryType = ActivityEntryType.SeatsReordered,
+                PlayerId = requestedByPlayerId
+            });
+        }
+
+        return true;
+    }
+
+    private static void ApplyPendingSeatOrder(GameState state)
+    {
+        if (state.PendingSeatOrder != null && IsValidSeatOrder(state.Players, state.PendingSeatOrder))
+            ReorderPlayers(state, state.PendingSeatOrder);
+
+        state.PendingSeatOrder = null;
+    }
+
+    /// <summary>Reorders the players, keeping <see cref="GameState.DealerIndex"/> on the same player.</summary>
+    private static void ReorderPlayers(GameState state, IReadOnlyList<string> orderedPlayerIds)
+    {
+        var dealerId = state.Players[state.DealerIndex].PlayerId;
+        state.Players = orderedPlayerIds.Select(id => state.Players.First(p => p.PlayerId == id)).ToList();
+        state.DealerIndex = state.Players.FindIndex(p => p.PlayerId == dealerId);
+    }
+
+    /// <summary>
+    /// Administrative override that abandons the current hand: every chip committed this hand
+    /// goes back to the player who put it in, any pending seating change is applied, and the
+    /// hand is re-dealt with the same dealer (blinds re-posted). Fails when no hand is in
+    /// progress and none can be dealt (the table is waiting on a rebuy decision or players),
+    /// since there is nothing to restart.
+    /// </summary>
+    public static Result<GameState> RestartHand(GameState state, string requestedByPlayerId)
+    {
+        if (!IsHandInProgress(state) && !CanDealHand(state))
+            return Result<GameState>.Failure("No hand in progress to restart");
+
+        var newState = state.Clone();
+
+        Emit(newState, new ActivityEntry
+        {
+            EntryType = ActivityEntryType.HandRestarted,
+            PlayerId = requestedByPlayerId
+        });
+
+        foreach (var player in newState.Players)
+            player.Stack += player.TotalContributed;
+
+        newState.Pot = 0;
+        newState.Pots = [];
+        newState.CurrentBet = 0;
+        newState.MinRaise = newState.BigBlind;
+        newState.Phase = GamePhase.PreFlop;
+        newState.IsHandActive = false;
+        newState.ActivePlayerTurnId = null;
+        newState.StreetFirstActorId = null;
+
+        ApplyPendingSeatOrder(newState);
+        ResetPlayersForNewHand(newState);
         TryStartHand(newState);
 
         return Result<GameState>.Success(newState);
@@ -904,12 +1058,16 @@ public static class GameEngine
             BlindType = BlindType.BigBlind
         });
 
-        state.CurrentBet = bbPlayer.CurrentBet;
+        // Everyone must call the full big blind even if the big blind is all-in for less.
+        state.CurrentBet = state.BigBlind;
 
         foreach (var player in state.Players)
             player.HasActedThisStreet = false;
 
         state.ActivePlayerTurnId = firstToActPlayer.PlayerId;
+        // A blind can put the first actor all-in (e.g. a short-stacked heads-up dealer).
+        if (firstToActPlayer.IsAllIn)
+            AdvanceTurn(state);
         state.StreetFirstActorId = state.ActivePlayerTurnId;
     }
 
@@ -942,6 +1100,7 @@ public static class GameEngine
         });
 
         PostBlinds(state);
+        CompleteAction(state);
 
         return state;
     }

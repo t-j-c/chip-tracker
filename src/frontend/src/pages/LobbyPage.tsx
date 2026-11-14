@@ -6,6 +6,9 @@ import { cn, getAvatarColor } from '@/lib/utils';
 import { useGameStore } from '../stores/gameStore';
 import { useRoomEvents } from '../hooks/useRoomEvents';
 import * as api from '../lib/api';
+import { moveSeat } from '../lib/seating';
+import { recallPlayer, rememberPlayer } from '../lib/identity';
+import { SeatMoveButtons } from '../components/SeatOrderDialog';
 
 export default function LobbyPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -32,12 +35,21 @@ export default function LobbyPage() {
   const [starting, setStarting] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [reordering, setReordering] = useState(false);
 
   const joinUrl = roomCode ? `${window.location.origin}/join?room=${roomCode}` : '';
 
   useEffect(() => {
-    if (roomCode) setRoomCode(roomCode);
-  }, [roomCode, setRoomCode]);
+    if (!roomCode) return;
+    setRoomCode(roomCode);
+    if (!playerId) {
+      const remembered = recallPlayer(roomCode);
+      if (remembered) {
+        setPlayerId(remembered.playerId);
+        setIsCreator(remembered.isCreator);
+      }
+    }
+  }, [roomCode, playerId, setRoomCode, setPlayerId, setIsCreator]);
 
   // Once the game starts (gameState becomes non-null), navigate to the game
   useEffect(() => {
@@ -58,8 +70,7 @@ export default function LobbyPage() {
       setIsCreator(data.isCreator ?? false);
       applySnapshot(data);
       addLobbyPlayer({ playerId: data.playerId, name: playerName.trim() });
-      sessionStorage.setItem(`playerId_${roomCode}`, data.playerId);
-      sessionStorage.setItem(`isCreator_${roomCode}`, String(data.isCreator ?? false));
+      rememberPlayer(roomCode, data.playerId, data.isCreator ?? false);
       setPlayerName('');
     } catch (err) {
       setJoinError(err instanceof Error ? err.message : `Failed to reach server: ${err}`);
@@ -80,6 +91,21 @@ export default function LobbyPage() {
       setError(err instanceof Error ? err.message : `Failed to reach server: ${err}`);
     } finally {
       setStarting(false);
+    }
+  };
+
+  const handleMoveSeat = async (index: number, delta: -1 | 1) => {
+    if (!roomCode || !playerId || reordering) return;
+    setReordering(true);
+    setError(null);
+
+    try {
+      const order = moveSeat(lobbyPlayers.map(p => p.playerId), index, delta);
+      applySnapshot(await api.reorderSeats(roomCode, playerId, order));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to reach server: ${err}`);
+    } finally {
+      setReordering(false);
     }
   };
 
@@ -110,6 +136,7 @@ export default function LobbyPage() {
 
   const alreadyJoined = !!playerId;
   const canStart = isCreator && lobbyPlayers.length >= 2;
+  const canReorder = !!playerId && playerId === creatorPlayerId && lobbyPlayers.length >= 2;
 
   return (
     <div className="min-h-[100dvh] bg-surface-bg flex flex-col items-center justify-start p-4 pb-28 overflow-y-auto">
@@ -174,16 +201,28 @@ export default function LobbyPage() {
               No players yet — be the first to join!
             </p>
           ) : (
+            <>
+            {canReorder && (
+              <p className="text-xs text-text-secondary mb-2" data-testid="seat-order-hint">
+                Arrange players in seating order, clockwise. The first player deals first.
+              </p>
+            )}
             <ul className="space-y-2">
               {lobbyPlayers.map((p, idx) => (
                 <li
                   key={p.playerId}
+                  data-testid={`lobby-player-${idx}`}
                   className="animate-slide-in flex items-center gap-3 px-3 py-3 bg-surface-elevated rounded-xl"
                 >
                   <div className={cn('w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-base flex-shrink-0', getAvatarColor(idx))}>
                     {p.name.charAt(0).toUpperCase()}
                   </div>
-                  <span className="font-medium text-text-primary">{p.name}</span>
+                  <div className="min-w-0">
+                    <span className="font-medium text-text-primary">{p.name}</span>
+                    {idx === 0 && lobbyPlayers.length >= 2 && (
+                      <p className="text-[10px] text-text-secondary leading-tight">Deals first</p>
+                    )}
+                  </div>
                   <div className="ml-auto flex items-center gap-1.5">
                     {p.playerId === creatorPlayerId && (
                       <Crown size={13} className="text-accent-warning" aria-label="Host" />
@@ -191,10 +230,20 @@ export default function LobbyPage() {
                     {p.playerId === playerId && (
                       <span className="text-xs text-accent-primary font-semibold">(you)</span>
                     )}
+                    {canReorder && (
+                      <SeatMoveButtons
+                        name={p.name}
+                        index={idx}
+                        count={lobbyPlayers.length}
+                        disabled={reordering}
+                        onMove={(delta) => handleMoveSeat(idx, delta)}
+                      />
+                    )}
                   </div>
                 </li>
               ))}
             </ul>
+            </>
           )}
         </div>
 

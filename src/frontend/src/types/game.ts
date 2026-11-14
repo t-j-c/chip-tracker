@@ -53,6 +53,8 @@ export interface GameState {
   pots: PotShare[];
   recentActivity?: ActivityEntry[];
   pendingUndoRequestBy?: string | null;
+  /** Seating order (player IDs, clockwise) that takes effect when the next hand is dealt. */
+  pendingSeatOrder?: string[] | null;
 }
 
 /** What every REST command response and every pushed event carries. */
@@ -68,7 +70,9 @@ export type RoomEventType =
   | 'gameStateUpdated'
   | 'undoRequested'
   | 'undoDeclined'
-  | 'undoCancelled';
+  | 'undoCancelled'
+  | 'seatsReordered'
+  | 'handRestarted';
 
 export interface RoomEvent extends RoomSnapshot {
   type: RoomEventType;
@@ -134,6 +138,8 @@ export const ActivityEntryType = {
   Rebuy: 'Rebuy',
   CashOut: 'CashOut',
   HandStarted: 'HandStarted',
+  SeatsReordered: 'SeatsReordered',
+  HandRestarted: 'HandRestarted',
 } as const;
 export type ActivityEntryType = (typeof ActivityEntryType)[keyof typeof ActivityEntryType];
 

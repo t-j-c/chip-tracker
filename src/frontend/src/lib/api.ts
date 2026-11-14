@@ -78,3 +78,11 @@ export const rebuy = (roomCode: string, playerId: string) =>
 
 export const declineRebuy = (roomCode: string, playerId: string) =>
   request<SnapshotResponse>('POST', `${roomPath(roomCode)}/decline-rebuy`, { playerId });
+
+/** Room creator only: sets the clockwise seating order (applied at the next deal if a hand is in progress). */
+export const reorderSeats = (roomCode: string, playerId: string, orderedPlayerIds: string[]) =>
+  request<SnapshotResponse>('POST', `${roomPath(roomCode)}/seats`, { playerId, orderedPlayerIds });
+
+/** Room creator only: returns every bet in the current hand and re-deals it with the same dealer. */
+export const restartHand = (roomCode: string, playerId: string) =>
+  request<SnapshotResponse>('POST', `${roomPath(roomCode)}/restart-hand`, { playerId });

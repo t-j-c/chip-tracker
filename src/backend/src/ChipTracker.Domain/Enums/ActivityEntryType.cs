@@ -12,5 +12,7 @@ public enum ActivityEntryType
     Refund,
     Rebuy,
     CashOut,
-    HandStarted
+    HandStarted,
+    SeatsReordered,
+    HandRestarted
 }

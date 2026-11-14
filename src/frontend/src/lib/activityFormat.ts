@@ -83,6 +83,16 @@ export function formatActivityEntry(entry: ActivityEntry): string {
       return `${player} was refunded ${amount} (uncalled bet)`
     }
 
+    case 'SeatsReordered': {
+      const player = entry.playerName || 'Unknown'
+      return `${player} changed the seating order`
+    }
+
+    case 'HandRestarted': {
+      const player = entry.playerName || 'Unknown'
+      return `${player} restarted the hand (all bets returned)`
+    }
+
     default:
       return 'Unknown activity'
   }
