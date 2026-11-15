@@ -10,6 +10,8 @@ public static class RoomEventTypes
     public const string UndoRequested = "undoRequested";
     public const string UndoDeclined = "undoDeclined";
     public const string UndoCancelled = "undoCancelled";
+    public const string SeatsReordered = "seatsReordered";
+    public const string HandRestarted = "handRestarted";
 }
 
 /// <summary>A room change pushed to every connected client. Always carries a full snapshot.</summary>

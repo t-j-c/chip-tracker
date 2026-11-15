@@ -27,6 +27,12 @@ public class ShowdownBody
     public List<PotAwardDto>? Awards { get; set; }
 }
 
+public class SeatOrderBody
+{
+    public string PlayerId { get; set; } = string.Empty;
+    public List<string>? OrderedPlayerIds { get; set; }
+}
+
 public static class GameCommandEndpoints
 {
     public const string RateLimitPolicy = "command";
@@ -96,6 +102,21 @@ public static class GameCommandEndpoints
         room.MapPost("/decline-rebuy", async (string roomCode, PlayerBody body, IMediator mediator) =>
         {
             var result = await mediator.Send(new DeclineRebuyCommand { RoomCode = roomCode, PlayerId = body.PlayerId });
+            return Respond(result.Success, result.Error, result.Snapshot);
+        });
+
+        room.MapPost("/seats", async (string roomCode, SeatOrderBody body, IMediator mediator) =>
+        {
+            var result = await mediator.Send(new ReorderSeatsCommand
+            {
+                RoomCode = roomCode, PlayerId = body.PlayerId, OrderedPlayerIds = body.OrderedPlayerIds ?? []
+            });
+            return Respond(result.Success, result.Error, result.Snapshot);
+        });
+
+        room.MapPost("/restart-hand", async (string roomCode, PlayerBody body, IMediator mediator) =>
+        {
+            var result = await mediator.Send(new RestartHandCommand { RoomCode = roomCode, PlayerId = body.PlayerId });
             return Respond(result.Success, result.Error, result.Snapshot);
         });
     }

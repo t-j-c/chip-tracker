@@ -94,6 +94,19 @@ export const useGameCommands = () => {
     [run],
   );
 
+  /** Room creator only: changes the clockwise seating order. */
+  const reorderSeats = useCallback(
+    (roomCode: string, playerId: string, orderedPlayerIds: string[]) =>
+      run(roomCode, () => api.reorderSeats(roomCode, playerId, orderedPlayerIds)),
+    [run],
+  );
+
+  /** Room creator only: returns all bets in the current hand and re-deals it. */
+  const restartHand = useCallback(
+    (roomCode: string, playerId: string) => run(roomCode, () => api.restartHand(roomCode, playerId)),
+    [run],
+  );
+
   return {
     submitAction,
     requestUndo,
@@ -105,5 +118,7 @@ export const useGameCommands = () => {
     resolveShowdownWithAwards,
     rebuy,
     declineRebuy,
+    reorderSeats,
+    restartHand,
   };
 };

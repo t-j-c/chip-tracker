@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using ChipTracker.Domain.Engine;
+using ChipTracker.Domain.Enums;
 
 namespace ChipTracker.Domain.Entities;
 
@@ -139,7 +141,8 @@ public class GameRoom
     }
 
     /// <summary>
-    /// Pops the last state from history and restores it as current.
+    /// Pops the last state from history and restores it as current. Seating isn't undoable, so
+    /// the room's current seating order is re-applied to the restored state.
     /// </summary>
     public bool UndoLastAction()
     {
@@ -149,11 +152,12 @@ public class GameRoom
 
         CurrentState = StateHistory[^1];
         StateHistory.RemoveAt(StateHistory.Count - 1);
+        GameEngine.ApplySeatOrder(CurrentState, Players.Select(p => p.PlayerId).ToList());
         
         // Mark activity entries created after the restored state as undone
         foreach (var entry in ActivityLog)
         {
-            if (entry.StateVersion > CurrentState.StateVersion)
+            if (entry.StateVersion > CurrentState.StateVersion && entry.EntryType != ActivityEntryType.SeatsReordered)
             {
                 entry.IsUndone = true;
             }
@@ -162,6 +166,45 @@ public class GameRoom
         ClearPendingUndo();
         LastUpdatedAt = DateTime.UtcNow;
         return true;
+    }
+
+    /// <summary>
+    /// Changes the seating order (see <see cref="GameEngine.ApplySeatOrder"/>). Seating is
+    /// room-level and deliberately not undoable: it is applied to the current state in place
+    /// without pushing undo history. Returns false if the order isn't a permutation of the
+    /// room's players.
+    /// </summary>
+    public bool SetSeatOrder(IReadOnlyList<string> orderedPlayerIds, string requestedByPlayerId)
+    {
+        if (!GameEngine.IsValidSeatOrder(Players, orderedPlayerIds))
+            return false;
+
+        Players = orderedPlayerIds.Select(id => Players.First(p => p.PlayerId == id)).ToList();
+
+        if (CurrentState != null)
+        {
+            EnsureStateVersions();
+            GameEngine.ApplySeatOrder(CurrentState, orderedPlayerIds, requestedByPlayerId);
+            DrainActivityLog();
+        }
+
+        LastUpdatedAt = DateTime.UtcNow;
+        return true;
+    }
+
+    /// <summary>
+    /// Replaces the current state with one that can't be undone past (an administrative reset):
+    /// the undo history and any pending undo request are discarded.
+    /// </summary>
+    public void PushCheckpoint(GameState newState)
+    {
+        EnsureStateVersions();
+        StateHistory.Clear();
+        newState.StateVersion = ++LatestStateVersion;
+        CurrentState = newState;
+        DrainActivityLog();
+        ClearPendingUndo();
+        LastUpdatedAt = DateTime.UtcNow;
     }
 
     public void ClearPendingUndo()

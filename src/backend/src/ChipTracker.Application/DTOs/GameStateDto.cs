@@ -17,6 +17,8 @@ public class GameStateDto
     public List<PotShareDto> Pots { get; set; } = [];
     public List<ActivityEntryDto> RecentActivity { get; set; } = [];
     public string? PendingUndoRequestBy { get; set; }
+    /// <summary>Seating order (player IDs) that takes effect when the next hand is dealt, if any.</summary>
+    public List<string>? PendingSeatOrder { get; set; }
 
     public static GameStateDto MapFromDomain(GameState state)
     {
@@ -47,7 +49,8 @@ public class GameStateDto
             {
                 Amount = p.Amount,
                 EligiblePlayerIds = p.EligiblePlayerIds
-            }).ToList()
+            }).ToList(),
+            PendingSeatOrder = state.PendingSeatOrder?.ToList()
         };
     }
 

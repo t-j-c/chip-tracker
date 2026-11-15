@@ -15,13 +15,18 @@ import GameHeader from '../components/GameHeader';
 import UndoDialog from '../components/UndoDialog';
 import ShowdownDialog from '../components/ShowdownDialog';
 import RebuyDialog from '../components/RebuyDialog';
+import SeatOrderDialog from '../components/SeatOrderDialog';
+import RestartHandDialog from '../components/RestartHandDialog';
 import { ActivityStrip } from '../components/ActivityStrip';
 import { ActivityHistoryModal } from '../components/ActivityHistoryModal';
+import { opponentsInSeatOrder } from '../lib/seating';
+import { recallPlayer, rememberPlayer } from '../lib/identity';
 
 export default function GamePage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const {
     playerId,
+    creatorPlayerId,
     gameState,
     isConnected,
     undoDeclined,
@@ -33,13 +38,16 @@ export default function GamePage() {
     setUndoDeclined,
   } = useGameStore();
   useRoomEvents(roomCode, playerId);
-  const { submitAction, requestUndo, approveUndo, declineUndo, cancelUndo, resolveShowdown, resolveSplitPot, resolveShowdownWithAwards, rebuy, declineRebuy } = useGameCommands();
+  const { submitAction, requestUndo, approveUndo, declineUndo, cancelUndo, resolveShowdown, resolveSplitPot, resolveShowdownWithAwards, rebuy, declineRebuy, reorderSeats, restartHand } = useGameCommands();
   // The undo prompt is derived from the snapshot, so a resync restores it after a missed push.
   const undoRequested = gameState?.pendingUndoRequestBy ?? null;
   const undoPendingSelf = !!playerId && undoRequested === playerId;
+  const isAdmin = !!playerId && playerId === creatorPlayerId;
   const [showUndoDialog, setShowUndoDialog] = useState(false);
   const [showShowdownDialog, setShowShowdownDialog] = useState(false);
   const [showActivityHistory, setShowActivityHistory] = useState(false);
+  const [showSeatOrderDialog, setShowSeatOrderDialog] = useState(false);
+  const [showRestartHandDialog, setShowRestartHandDialog] = useState(false);
   // AN-8: error shake key — increment to replay animation on each new error
   const [errorKey, setErrorKey] = useState(0);
   // SD-5: confetti celebration state
@@ -60,11 +68,10 @@ export default function GamePage() {
     setRoomCode(roomCode);
 
     if (!playerId) {
-      const storedPlayerId = sessionStorage.getItem(`playerId_${roomCode}`);
-      const storedIsCreator = sessionStorage.getItem(`isCreator_${roomCode}`) === 'true';
-      if (storedPlayerId) {
-        setPlayerId(storedPlayerId);
-        setIsCreator(storedIsCreator);
+      const remembered = recallPlayer(roomCode);
+      if (remembered) {
+        setPlayerId(remembered.playerId);
+        setIsCreator(remembered.isCreator);
       }
     }
   }, [roomCode, playerId, setRoomCode, setPlayerId, setIsCreator]);
@@ -138,16 +145,42 @@ export default function GamePage() {
 
   const isYourTurn = playerId && gameState.activePlayerTurnId === playerId;
   const currentPlayer = gameState.players.find(p => p.playerId === playerId);
-  const otherPlayers = gameState.players.filter(p => p.playerId !== playerId);
+  const otherPlayers = opponentsInSeatOrder(gameState.players, playerId);
   const seatedPlayers = gameState.players.filter(p => !p.isEliminated);
   const othersAwaitingRebuy = otherPlayers.filter(p => p.isAwaitingRebuy);
   const showRebuyDialog = !!currentPlayer?.isAwaitingRebuy;
   const waitingForPlayers = !gameState.isHandActive && !showRebuyDialog && othersAwaitingRebuy.length === 0 && seatedPlayers.length < 2;
+  const seatOrderPending = !!gameState.pendingSeatOrder?.length;
+  // Mirrors the server: nothing to restart while the table waits on a rebuy decision or players.
+  const canRestartHand = gameState.isHandActive || gameState.phase === 'Showdown'
+    || (seatedPlayers.length >= 2 && !seatedPlayers.some(p => p.isAwaitingRebuy));
 
   const handleAction = (action: PokerAction, amount?: number) => {
     if (playerId && roomCode) {
       submitAction(roomCode, playerId, action, amount);
     }
+  };
+
+  const handlePickPlayer = (pickedPlayerId: string) => {
+    if (!roomCode) return;
+    const pickedIsCreator = pickedPlayerId === creatorPlayerId;
+    rememberPlayer(roomCode, pickedPlayerId, pickedIsCreator);
+    setPlayerId(pickedPlayerId);
+    setIsCreator(pickedIsCreator);
+  };
+
+  const handleSaveSeatOrder = (orderedPlayerIds: string[]) => {
+    if (playerId && roomCode) {
+      reorderSeats(roomCode, playerId, orderedPlayerIds);
+    }
+    setShowSeatOrderDialog(false);
+  };
+
+  const handleConfirmRestartHand = () => {
+    if (playerId && roomCode) {
+      restartHand(roomCode, playerId);
+    }
+    setShowRestartHandDialog(false);
   };
 
   const handleApproveUndo = () => {
@@ -223,6 +256,8 @@ export default function GamePage() {
         isConnected={isConnected}
         undoPending={undoPendingSelf}
         onRequestUndo={handleRequestUndo}
+        onOpenSeatOrder={isAdmin ? () => setShowSeatOrderDialog(true) : undefined}
+        onRestartHand={isAdmin && canRestartHand ? () => setShowRestartHandDialog(true) : undefined}
       />
 
       {/* GP-27: Undo request sent — top toast banner */}
@@ -273,6 +308,34 @@ export default function GamePage() {
 
           {/* Phase stepper */}
           <PhaseStepper phase={gameState.phase as import('../types/game').GamePhase} />
+
+          {/* No remembered identity on this device: let the player take their seat back */}
+          {!playerId && (
+            <div data-testid="pick-player" className="bg-surface-card rounded-xl px-4 py-3">
+              <p className="text-sm text-text-secondary mb-2">You're watching. Tap your name to take your seat:</p>
+              <div className="flex flex-wrap gap-2">
+                {gameState.players.map(p => (
+                  <button
+                    key={p.playerId}
+                    onClick={() => handlePickPlayer(p.playerId)}
+                    className="bg-surface-elevated text-text-primary font-semibold text-sm py-2 px-3 rounded-lg hover:bg-accent-primary/20 active:scale-95 transition-all"
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Seating change queued by the room creator */}
+          {seatOrderPending && (
+            <div
+              data-testid="seat-order-pending"
+              className="text-center text-text-secondary text-sm bg-surface-card rounded-xl px-4 py-3"
+            >
+              New seating order starts next hand
+            </div>
+          )}
 
           {/* Waiting on another player's rebuy decision */}
           {othersAwaitingRebuy.length > 0 && (
@@ -369,6 +432,22 @@ export default function GamePage() {
           startingStack={roomSettings.startingStack}
           onRebuy={handleRebuy}
           onCashOut={handleCashOut}
+        />
+      )}
+
+      {showSeatOrderDialog && isAdmin && (
+        <SeatOrderDialog
+          players={gameState.players}
+          pendingOrder={gameState.pendingSeatOrder}
+          onSave={handleSaveSeatOrder}
+          onClose={() => setShowSeatOrderDialog(false)}
+        />
+      )}
+
+      {showRestartHandDialog && isAdmin && (
+        <RestartHandDialog
+          onConfirm={handleConfirmRestartHand}
+          onCancel={() => setShowRestartHandDialog(false)}
         />
       )}
 

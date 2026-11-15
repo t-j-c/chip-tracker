@@ -29,9 +29,13 @@ public class ResolveShowdownCommandHandler : IRequestHandler<ResolveShowdownComm
 
         var state = room.CurrentState;
 
-        // Only allow resolution at showdown phase or when hand is already inactive (all-in runout)
-        if (state.Phase != GamePhase.Showdown && state.IsHandActive)
+        // Only resolve a hand that has ended at Showdown and is waiting for its winner(s). This
+        // also rejects a late duplicate tap after the hand was already resolved.
+        if (state.IsHandActive)
             return new ResolveShowdownResult { Success = false, Error = "Hand is still in progress" };
+
+        if (state.Phase != GamePhase.Showdown)
+            return new ResolveShowdownResult { Success = false, Error = "This hand has already been resolved" };
 
         // Clone before mutating: ResolveShowdown/ResolveSplitPot/AwardPots mutate in place, so
         // PushState must be given a distinct object from room.CurrentState or the pre-resolution

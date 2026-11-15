@@ -137,6 +137,32 @@ public class SidePotTests
     }
 
     [Fact]
+    public void SidePots_RaiserFoldsToBiggerAllIn_FoldedChipsCountAsCalled_NoChipsLost()
+    {
+        // p1 raises to 100, p2 calls all-in for 40, p3 shoves to 300, p1 folds. p1's 100
+        // matched p3's shove up to 100, so only 200 is uncalled - the refund used to ignore
+        // folded players, returning 260 and leaving 60 chips in no pot (lost on award).
+        var state = ThreeHandedState(dealerIndex: 0, stack2: 40, stack3: 300);
+        var totalBefore = TotalChips(state);
+        state = GameEngine.ValidateAction(state, Action("p1", PokerAction.Raise, 100)).Value!;
+        state = GameEngine.ValidateAction(state, Action("p2", PokerAction.AllIn)).Value!;
+        state = GameEngine.ValidateAction(state, Action("p3", PokerAction.AllIn)).Value!;
+        state = GameEngine.ValidateAction(state, Action("p1", PokerAction.Fold)).Value!;
+
+        state.Phase.Should().Be(GamePhase.Showdown);
+        state.Players.First(p => p.PlayerId == "p3").Stack.Should().Be(200, "only the uncalled 200 comes back");
+        state.Pots.Select(p => p.Amount).Should().Equal(120, 120);
+        state.Pots.Sum(p => p.Amount).Should().Be(state.Pot);
+
+        var awarded = GameEngine.AwardPots(state,
+        [
+            new PotAward { PotIndex = 0, WinnerPlayerIds = ["p2"] },
+            new PotAward { PotIndex = 1, WinnerPlayerIds = ["p3"] }
+        ]).Value!;
+        TotalChips(awarded).Should().Be(totalBefore);
+    }
+
+    [Fact]
     public void SidePots_TwoDifferentAllInLevels_CreatesThreePots()
     {
         var players = new List<Player>

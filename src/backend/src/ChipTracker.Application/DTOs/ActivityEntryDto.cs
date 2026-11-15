@@ -45,6 +45,8 @@ public record ActivityEntryDto(
         ActivityEntryType.Rebuy => $"{PlayerId} rebuys for {Amount}",
         ActivityEntryType.CashOut => $"{PlayerId} cashes out",
         ActivityEntryType.HandStarted => "New hand started",
+        ActivityEntryType.SeatsReordered => $"{PlayerId} changes the seating order",
+        ActivityEntryType.HandRestarted => $"{PlayerId} restarts the hand",
         _ => "Unknown activity"
     };
 

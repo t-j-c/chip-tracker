@@ -8,10 +8,13 @@ import type { RoomEvent } from '../types/game';
 /** API Gateway closes idle WebSockets after 10 minutes. */
 export const PING_INTERVAL_MS = 5 * 60 * 1000;
 
+/** Safety-net resync while visible, in case a push was missed on a socket that looks open. */
+export const RESYNC_INTERVAL_MS = 30 * 1000;
+
 /**
  * Keeps a WebSocket open for a room and applies every pushed snapshot to the store.
  * Push is best-effort: correctness comes from resyncing (GET) on every (re)connect,
- * when the page becomes visible again, and on `stale` events.
+ * when the page becomes visible again, on `stale` events, and periodically while visible.
  */
 export const useRoomEvents = (
   roomCode: string | null | undefined,
@@ -125,11 +128,16 @@ export const useRoomEvents = (
     };
     document.addEventListener('visibilitychange', onVisible);
 
+    const resyncTimer = setInterval(() => {
+      if (document.visibilityState === 'visible' && !disposed) void resync(false);
+    }, RESYNC_INTERVAL_MS);
+
     connect();
 
     return () => {
       disposed = true;
       document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(resyncTimer);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       clearPing();
       const ws = socket;

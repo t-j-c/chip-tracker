@@ -5,6 +5,7 @@ import type { GetRoomResponse, JoinRoomRequest, JoinRoomResponse } from '../type
 import { cn, getAvatarColor } from '@/lib/utils';
 import ChipLogo from '../components/ChipLogo';
 import { useApiWarmUp } from '../hooks/useApiWarmUp';
+import { rememberPlayer } from '../lib/identity';
 
 export default function JoinRoomPage() {
   useApiWarmUp();
@@ -63,8 +64,7 @@ export default function JoinRoomPage() {
         storeRoomCode(code);
         storePlayerId(data.playerId);
         setIsCreator(data.isCreator ?? false);
-        sessionStorage.setItem(`playerId_${code}`, data.playerId);
-        sessionStorage.setItem(`isCreator_${code}`, String(data.isCreator ?? false));
+        rememberPlayer(code, data.playerId, data.isCreator ?? false);
         navigate(`/room/${code}/lobby`);
       } else {
         setError(data.error || 'Failed to join room');
@@ -78,9 +78,11 @@ export default function JoinRoomPage() {
 
   const handleRejoin = (selectedPlayerId: string) => {
     const code = roomCode.trim().toUpperCase();
+    const selectedIsCreator = roomInfo?.creatorPlayerId === selectedPlayerId;
     storeRoomCode(code);
     storePlayerId(selectedPlayerId);
-    sessionStorage.setItem(`playerId_${code}`, selectedPlayerId);
+    setIsCreator(selectedIsCreator);
+    rememberPlayer(code, selectedPlayerId, selectedIsCreator);
     navigate(`/room/${code}`);
   };
 

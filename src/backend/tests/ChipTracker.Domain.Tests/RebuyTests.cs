@@ -262,6 +262,78 @@ public class RebuyTests
         newState.IsHandActive.Should().BeTrue("both seats are filled again");
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // Regression: an eliminated player buying back in while a hand is being played used to
+    // re-deal (post blinds, bump the hand number, move the turn) on top of the live hand. At
+    // showdown that left the hand "active" in the Showdown phase with a player on turn who
+    // could never act - permanently stuck.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private static GameState ThreeHandedWithP1CashedOut(int stack2 = 1000, int stack3 = 1000)
+    {
+        var players = new List<Player>
+        {
+            new() { PlayerId = "p1", Name = "Alice", Stack = 0, IsAwaitingRebuy = true },
+            new() { PlayerId = "p2", Name = "Bob",   Stack = stack2 },
+            new() { PlayerId = "p3", Name = "Cara",  Stack = stack3 },
+        };
+        return GameEngine.ApplyCashOut(RawState(players, dealerIndex: 0), "p1").Value!;
+    }
+
+    [Fact]
+    public void Rebuy_ByEliminatedPlayer_MidHand_SitsOutUntilNextHand()
+    {
+        var state = ThreeHandedWithP1CashedOut();
+        state.IsHandActive.Should().BeTrue("p2 and p3 are playing a hand");
+        var before = state.Clone();
+
+        var result = GameEngine.ApplyRebuy(state, "p1", 1000);
+
+        result.IsSuccess.Should().BeTrue();
+        var during = result.Value!;
+        during.HandNumber.Should().Be(before.HandNumber, "the live hand must not be re-dealt");
+        during.Pot.Should().Be(before.Pot);
+        during.CurrentBet.Should().Be(before.CurrentBet);
+        during.ActivePlayerTurnId.Should().Be(before.ActivePlayerTurnId);
+        var p1 = during.Players.First(p => p.PlayerId == "p1");
+        p1.Stack.Should().Be(1000);
+        p1.IsEliminated.Should().BeFalse();
+        p1.HasFolded.Should().BeTrue("they sit out the hand already in progress");
+
+        var next = GameEngine.ValidateAction(during, Action(during.ActivePlayerTurnId!, PokerAction.Fold)).Value!;
+
+        next.HandNumber.Should().Be(before.HandNumber + 1);
+        next.IsHandActive.Should().BeTrue();
+        next.Players.First(p => p.PlayerId == "p1").HasFolded.Should().BeFalse("dealt into the next hand");
+        next.Pot.Should().Be(30, "fresh blinds only");
+    }
+
+    [Fact]
+    public void Rebuy_ByEliminatedPlayer_AtShowdown_ShowdownStillResolvable()
+    {
+        var state = ThreeHandedWithP1CashedOut(stack2: 1000, stack3: 2000);
+        state = GameEngine.ValidateAction(state, Action(state.ActivePlayerTurnId!, PokerAction.AllIn)).Value!;
+        state = GameEngine.ValidateAction(state, Action(state.ActivePlayerTurnId!, PokerAction.Call)).Value!;
+        state.Phase.Should().Be(GamePhase.Showdown);
+        var potsBefore = state.Pots.Sum(p => p.Amount);
+
+        var during = GameEngine.ApplyRebuy(state, "p1", 1000).Value!;
+
+        during.Phase.Should().Be(GamePhase.Showdown);
+        during.IsHandActive.Should().BeFalse("the hand is still waiting for its winner to be picked");
+        during.ActivePlayerTurnId.Should().BeNull();
+        during.Pots.Sum(p => p.Amount).Should().Be(potsBefore);
+        during.Pots.Should().OnlyContain(p => !p.EligiblePlayerIds.Contains("p1"));
+
+        var result = GameEngine.AwardPots(during, [new PotAward { PotIndex = 0, WinnerPlayerIds = ["p2"] }]);
+
+        result.IsSuccess.Should().BeTrue();
+        var next = result.Value!;
+        next.IsHandActive.Should().BeTrue();
+        next.Phase.Should().Be(GamePhase.PreFlop);
+        next.Players.Should().OnlyContain(p => !p.HasFolded, "all three are dealt into the next hand");
+    }
+
     [Fact]
     public void Rebuy_ByEliminatedPlayer_ReseatsThem()
     {

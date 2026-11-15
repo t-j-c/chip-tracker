@@ -47,6 +47,12 @@ public class GameState
     public int StateVersion { get; set; }
 
     /// <summary>
+    /// Seating order (player IDs, clockwise) requested while a hand was in progress. Applied
+    /// when the next hand is dealt or the hand is restarted, then cleared.
+    /// </summary>
+    public List<string>? PendingSeatOrder { get; set; }
+
+    /// <summary>
     /// Creates a deep copy of this game state.
     /// </summary>
     public GameState Clone()
@@ -67,7 +73,8 @@ public class GameState
             Pots = Pots.Select(p => p.Clone()).ToList(),
             PendingLog = PendingLog.Select(e => e.Clone()).ToList(),
             HandNumber = HandNumber,
-            StateVersion = StateVersion
+            StateVersion = StateVersion,
+            PendingSeatOrder = PendingSeatOrder?.ToList()
         };
     }
 }

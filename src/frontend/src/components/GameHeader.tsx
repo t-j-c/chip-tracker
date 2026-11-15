@@ -7,13 +7,21 @@ interface GameHeaderProps {
   isConnected: boolean;
   undoPending: boolean;
   onRequestUndo: () => void;
+  /** Room creator only: opens the seating-order editor. Admin items are hidden when omitted. */
+  onOpenSeatOrder?: () => void;
+  /** Room creator only: opens the restart-hand confirmation. */
+  onRestartHand?: () => void;
 }
+
+const MENU_ITEM = 'w-full text-left px-4 py-3 text-sm font-medium transition-colors text-text-primary hover:bg-surface-card';
 
 export default function GameHeader({
   roomCode,
   isConnected,
   undoPending,
   onRequestUndo,
+  onOpenSeatOrder,
+  onRestartHand,
 }: GameHeaderProps) {
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -32,6 +40,11 @@ export default function GameHeader({
   const handleRequestUndo = () => {
     setMenuOpen(false);
     onRequestUndo();
+  };
+
+  const runAndClose = (action: () => void) => () => {
+    setMenuOpen(false);
+    action();
   };
 
   // Close menu on outside click
@@ -103,6 +116,16 @@ export default function GameHeader({
               >
                 {undoPending ? 'Undo Requested...' : 'Request Undo'}
               </button>
+              {onOpenSeatOrder && (
+                <button onClick={runAndClose(onOpenSeatOrder)} className={MENU_ITEM} data-testid="menu-seat-order">
+                  Seating Order
+                </button>
+              )}
+              {onRestartHand && (
+                <button onClick={runAndClose(onRestartHand)} className={MENU_ITEM} data-testid="menu-restart-hand">
+                  Restart Hand
+                </button>
+              )}
             </div>
           )}
         </div>

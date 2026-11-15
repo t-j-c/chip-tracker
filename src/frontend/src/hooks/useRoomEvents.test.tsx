@@ -4,7 +4,7 @@ import { renderHook, act } from '@testing-library/react';
 const getRoom = vi.hoisted(() => vi.fn());
 vi.mock('../lib/api', () => ({ getRoom }));
 
-import { useRoomEvents, PING_INTERVAL_MS } from './useRoomEvents';
+import { useRoomEvents, PING_INTERVAL_MS, RESYNC_INTERVAL_MS } from './useRoomEvents';
 import { useGameStore } from '../stores/gameStore';
 
 class MockWebSocket {
@@ -157,6 +157,24 @@ describe('useRoomEvents', () => {
     await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
 
     expect(MockWebSocket.instances).toHaveLength(2);
+  });
+
+  it('resyncs every 30 seconds while the page is visible, but not while hidden', async () => {
+    renderHook(() => useRoomEvents('ABC123', 'p1'));
+    await act(async () => { last().open(); });
+    await flush();
+    getRoom.mockClear();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(RESYNC_INTERVAL_MS); });
+    expect(getRoom).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    try {
+      await act(async () => { await vi.advanceTimersByTimeAsync(RESYNC_INTERVAL_MS * 2); });
+      expect(getRoom).toHaveBeenCalledTimes(1);
+    } finally {
+      delete (document as unknown as Record<string, unknown>).visibilityState;
+    }
   });
 
   it('sends a ping every 5 minutes while open', async () => {

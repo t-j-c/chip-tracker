@@ -440,4 +440,61 @@ public class BettingRoundTests
         result.Value!.Phase.Should().Be(GamePhase.Flop);
         result.Value.ActivePlayerTurnId.Should().Be("p3", "dealer+1 (p2) folded, so p3 is the next eligible actor");
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Regression: short-stacked blinds
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void HeadsUp_DealerCoveredOnlyBySmallBlind_RunsOutInsteadOfWaitingOnAllInPlayer()
+    {
+        // The dealer posts the small blind all-in. They used to be handed the first turn anyway,
+        // and every action was rejected with "You are all-in" - the hand could never continue.
+        var state = HeadsUpState(dealerIndex: 0, stack1: 5, stack2: 1000);
+
+        state.Phase.Should().Be(GamePhase.Showdown);
+        state.IsHandActive.Should().BeFalse();
+        state.ActivePlayerTurnId.Should().BeNull();
+        state.Pot.Should().Be(10, "the big blind's uncalled 15 is refunded");
+        TotalChips(state).Should().Be(1005);
+    }
+
+    [Fact]
+    public void HeadsUp_BigBlindShorterThanSmallBlind_NoNegativeCall()
+    {
+        // BB is all-in for 5 against a 10 small blind: nobody can respond, so the hand runs out
+        // (it used to leave the SB facing a "call" of -5).
+        var state = HeadsUpState(dealerIndex: 0, stack1: 1000, stack2: 5);
+
+        state.Phase.Should().Be(GamePhase.Showdown);
+        state.ActivePlayerTurnId.Should().BeNull();
+        state.Pot.Should().Be(10);
+        state.Players.First(p => p.PlayerId == "p1").Stack.Should().Be(995, "the SB's uncalled 5 is refunded");
+    }
+
+    [Fact]
+    public void ThreePlayers_ShortBigBlind_OthersMustCallTheFullBigBlind()
+    {
+        var state = ThreeHandedState(dealerIndex: 0, stack3: 5);
+
+        state.CurrentBet.Should().Be(20);
+        state.ActivePlayerTurnId.Should().Be("p1");
+
+        var afterCall = GameEngine.ValidateAction(state, Action("p1", PokerAction.Call)).Value!;
+        afterCall.Players.First(p => p.PlayerId == "p1").CurrentBet.Should().Be(20);
+    }
+
+    [Fact]
+    public void ValidateCall_PlayerAlreadyAboveCurrentBet_Rejected()
+    {
+        // Guards rooms persisted before the short-blind fix, where CurrentBet could trail the SB.
+        var state = HeadsUpState(dealerIndex: 0);
+        state.CurrentBet = 5;
+        var totalBefore = TotalChips(state);
+
+        var result = GameEngine.ValidateAction(state, Action("p1", PokerAction.Call));
+
+        result.IsSuccess.Should().BeFalse();
+        TotalChips(state).Should().Be(totalBefore);
+    }
 }
