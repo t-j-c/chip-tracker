@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import * as Dialog from '@radix-ui/react-dialog';
-import type { GameState, PotAward } from '../types/game';
-import { getAvatarColor, cn } from '@/lib/utils';
+import type { GameState, Player, PotAward } from '../types/game';
+import { cn, formatMoney } from '@/lib/utils';
+import { DialogShell } from './DialogShell';
+import Avatar from './ui/Avatar';
+import RetroButton from './ui/RetroButton';
 
 interface ShowdownDialogProps {
   gameState: GameState;
@@ -9,88 +11,90 @@ interface ShowdownDialogProps {
   onSplitPot: () => void;
   /** Called once all pots have a winner selected (only used when there is more than one pot). */
   onResolveAwards: (awards: PotAward[]) => void;
-  /** SD-5: set while confetti plays (1.5s). Highlights this player, dims others. */
+  /** SD-5: set while the 1.5s celebration plays. Highlights this player, dims others. */
   celebratingWinnerId?: string | null;
+}
+
+interface WinnerButtonProps {
+  player: Player;
+  seatIndex: number;
+  onClick: () => void;
+  disabled?: boolean;
+  state?: 'winner' | 'dimmed' | 'idle';
+  testId?: string;
+}
+
+/** "Alice wins" — accessible name must start with "{name} wins" (e2e). */
+function WinnerButton({ player, seatIndex, onClick, disabled, state = 'idle', testId }: WinnerButtonProps) {
+  return (
+    <RetroButton
+      block
+      size="lg"
+      tone={state === 'winner' ? 'mustard' : 'cream'}
+      onClick={onClick}
+      disabled={disabled}
+      data-testid={testId}
+      className={cn(
+        'justify-start gap-3 py-2 text-left',
+        state === 'winner' && 'winner-ring animate-winner-glow scale-105 disabled:opacity-100',
+        state === 'dimmed' && 'opacity-40',
+      )}
+    >
+      <Avatar name={player.name} colorIndex={seatIndex} size="md" />
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate">{player.name} wins</span>
+        <span className="font-sans text-xs font-semibold text-ink-soft tabular-nums">{formatMoney(player.stack)}</span>
+      </span>
+    </RetroButton>
+  );
 }
 
 export default function ShowdownDialog({ gameState, onSelectWinner, onSplitPot, onResolveAwards, celebratingWinnerId }: ShowdownDialogProps) {
   const isCelebrating = !!celebratingWinnerId;
   const pots = gameState.pots ?? [];
+  const seatIndexOf = (id: string) => gameState.players.findIndex(p => p.playerId === id);
 
   if (pots.length > 1) {
-    return (
-      <SidePotStepper
-        gameState={gameState}
-        pots={pots}
-        onResolveAwards={onResolveAwards}
-      />
-    );
+    return <SidePotStepper gameState={gameState} pots={pots} onResolveAwards={onResolveAwards} seatIndexOf={seatIndexOf} />;
   }
 
   const activePlayers = gameState.players.filter(p => !p.hasFolded);
 
   return (
-    <Dialog.Root open>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50" />
-        <Dialog.Content
-          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm p-6 rounded-2xl bg-surface-elevated shadow-2xl"
-          aria-describedby="showdown-description"
-        >
-          <Dialog.Title className="text-2xl font-bold uppercase tracking-widest text-gold text-center mb-1">
-            Showdown
-          </Dialog.Title>
-          {isCelebrating ? (
-            <p className="text-gold font-bold text-center text-lg animate-pulse mb-1">🎉 Winner! 🎉</p>
-          ) : (
-            <p
-              id="showdown-description"
-              className="text-text-secondary text-center text-sm mb-1"
-            >
-              Who won the hand?
-            </p>
-          )}
-          <p className="text-center text-text-primary font-mono font-bold text-lg mb-5">
-            Pot: ${gameState.pot.toLocaleString()}
-          </p>
-          <div className="space-y-3">
-            {activePlayers.map((player, idx) => (
-              <button
-                key={player.playerId}
-                onClick={() => !isCelebrating && onSelectWinner(player.playerId)}
-                disabled={isCelebrating}
-                className={cn(
-                  'w-full text-white font-bold py-4 px-4 rounded-xl transition-all text-left flex items-center gap-3 bg-surface-card border-2',
-                  isCelebrating && celebratingWinnerId === player.playerId
-                    ? 'border-gold bg-gold/10 scale-105'
-                    : isCelebrating
-                    ? 'border-transparent opacity-40'
-                    : 'border-transparent hover:opacity-90 active:scale-95 hover:border-gold cursor-pointer'
-                )}
-              >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg flex-shrink-0 ${getAvatarColor(idx)}`}>
-                  {player.name.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <div className="font-bold text-text-primary">{player.name} wins</div>
-                  <div className="text-xs text-text-secondary font-mono">${player.stack.toLocaleString()}</div>
-                </div>
-              </button>
-            ))}
-            <button
-              onClick={onSplitPot}
-              disabled={isCelebrating}
-              className={cn(
-                'w-full border-2 border-surface-card text-text-primary font-bold py-3 px-4 rounded-xl transition-all',
-                isCelebrating ? 'opacity-30 cursor-not-allowed' : 'hover:bg-surface-card active:scale-95'
-              )}
-            >
-              Split Pot
-            </button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <DialogShell
+      isFixed
+      showCloseButton={false}
+      centerTitle
+      title="Showdown"
+      testId="showdown-dialog"
+      ariaDescribedBy="showdown-description"
+    >
+      {isCelebrating ? (
+        <p className="animate-pop-in mb-1 text-center font-comic text-3xl tracking-wider text-tomato-deep">Winner!</p>
+      ) : (
+        <p id="showdown-description" className="mb-1 text-center text-sm font-semibold text-ink-soft">
+          Who won the hand?
+        </p>
+      )}
+      <p className="mb-4 text-center font-display text-xl text-ink tabular-nums">
+        Pot: {formatMoney(gameState.pot)}
+      </p>
+      <div className="space-y-3">
+        {activePlayers.map(player => (
+          <WinnerButton
+            key={player.playerId}
+            player={player}
+            seatIndex={seatIndexOf(player.playerId)}
+            onClick={() => !isCelebrating && onSelectWinner(player.playerId)}
+            disabled={isCelebrating}
+            state={!isCelebrating ? 'idle' : celebratingWinnerId === player.playerId ? 'winner' : 'dimmed'}
+          />
+        ))}
+        <RetroButton block size="md" tone="teal" onClick={onSplitPot} disabled={isCelebrating}>
+          Split Pot
+        </RetroButton>
+      </div>
+    </DialogShell>
   );
 }
 
@@ -98,6 +102,7 @@ interface SidePotStepperProps {
   gameState: GameState;
   pots: NonNullable<GameState['pots']>;
   onResolveAwards: (awards: PotAward[]) => void;
+  seatIndexOf: (id: string) => number;
 }
 
 /**
@@ -106,7 +111,7 @@ interface SidePotStepperProps {
  * eligible players). Awards accumulate across steps and are submitted together once every
  * pot has a winner.
  */
-function SidePotStepper({ gameState, pots, onResolveAwards }: SidePotStepperProps) {
+function SidePotStepper({ gameState, pots, onResolveAwards, seatIndexOf }: SidePotStepperProps) {
   const [step, setStep] = useState(0);
   const [awards, setAwards] = useState<PotAward[]>([]);
 
@@ -125,53 +130,46 @@ function SidePotStepper({ gameState, pots, onResolveAwards }: SidePotStepperProp
   };
 
   return (
-    <Dialog.Root open>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50" />
-        <Dialog.Content
-          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm p-6 rounded-2xl bg-surface-elevated shadow-2xl"
-          aria-describedby="showdown-side-pot-description"
-        >
-          <Dialog.Title className="text-2xl font-bold uppercase tracking-widest text-gold text-center mb-1">
-            Showdown
-          </Dialog.Title>
-          <p
-            id="showdown-side-pot-description"
-            className="text-text-secondary text-center text-sm mb-1"
-            data-testid="pot-step-label"
-          >
-            Who won the {potLabel.toLowerCase()}? ({step + 1} of {pots.length})
-          </p>
-          <p className="text-center text-text-primary font-mono font-bold text-lg mb-5">
-            {potLabel}: ${pot.amount.toLocaleString()}
-          </p>
-          <div className="space-y-3">
-            {eligiblePlayers.map((player, idx) => (
-              <button
-                key={player.playerId}
-                data-testid={`pot-winner-${player.playerId}`}
-                onClick={() => submitStep([player.playerId])}
-                className="w-full text-white font-bold py-4 px-4 rounded-xl transition-all text-left flex items-center gap-3 bg-surface-card border-2 border-transparent hover:opacity-90 active:scale-95 hover:border-gold cursor-pointer"
-              >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg flex-shrink-0 ${getAvatarColor(idx)}`}>
-                  {player.name.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <div className="font-bold text-text-primary">{player.name} wins</div>
-                  <div className="text-xs text-text-secondary font-mono">${player.stack.toLocaleString()}</div>
-                </div>
-              </button>
-            ))}
-            <button
-              data-testid="pot-split"
-              onClick={() => submitStep(eligiblePlayers.map(p => p.playerId))}
-              className="w-full border-2 border-surface-card text-text-primary font-bold py-3 px-4 rounded-xl transition-all hover:bg-surface-card active:scale-95"
-            >
-              Split This Pot
-            </button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <DialogShell
+      isFixed
+      showCloseButton={false}
+      centerTitle
+      title="Showdown"
+      testId="showdown-dialog"
+      ariaDescribedBy="showdown-side-pot-description"
+    >
+      <div className="mb-3 flex justify-center gap-1.5" aria-hidden="true">
+        {pots.map((_, i) => (
+          <span
+            key={i}
+            className={cn('h-3 w-3 rounded-full border-2 border-ink', i < step ? 'bg-teal' : i === step ? 'bg-mustard' : 'bg-card')}
+          />
+        ))}
+      </div>
+      <p
+        id="showdown-side-pot-description"
+        className="mb-1 text-center text-sm font-semibold text-ink-soft"
+        data-testid="pot-step-label"
+      >
+        Who won the {potLabel.toLowerCase()}? ({step + 1} of {pots.length})
+      </p>
+      <p className="mb-4 text-center font-display text-xl text-ink tabular-nums">
+        {potLabel}: {formatMoney(pot.amount)}
+      </p>
+      <div className="space-y-3">
+        {eligiblePlayers.map(player => (
+          <WinnerButton
+            key={player.playerId}
+            player={player}
+            seatIndex={seatIndexOf(player.playerId)}
+            testId={`pot-winner-${player.playerId}`}
+            onClick={() => submitStep([player.playerId])}
+          />
+        ))}
+        <RetroButton block size="md" tone="teal" data-testid="pot-split" onClick={() => submitStep(eligiblePlayers.map(p => p.playerId))}>
+          Split This Pot
+        </RetroButton>
+      </div>
+    </DialogShell>
   );
 }
