@@ -128,7 +128,7 @@ describe('ChipTrackerStack', () => {
     });
   });
 
-  test('keep-alive $default route is a MOCK with a request template and an integration response', () => {
+  test('keep-alive $default route returns a pong via the MOCK integration', () => {
     template.hasResourceProperties('AWS::ApiGatewayV2::Integration', {
       IntegrationType: 'MOCK',
       RequestTemplates: { $default: '{"statusCode": 200}' },
@@ -136,6 +136,15 @@ describe('ChipTrackerStack', () => {
     });
     template.hasResourceProperties('AWS::ApiGatewayV2::IntegrationResponse', {
       IntegrationResponseKey: '$default',
+      TemplateSelectionExpression: '\\$default',
+      ResponseTemplates: { $default: '{"type":"pong","revision":0}' },
+    });
+    template.hasResourceProperties('AWS::ApiGatewayV2::Route', {
+      RouteKey: '$default',
+      RouteResponseSelectionExpression: '$default',
+    });
+    template.hasResourceProperties('AWS::ApiGatewayV2::RouteResponse', {
+      RouteResponseKey: '$default',
     });
   });
 

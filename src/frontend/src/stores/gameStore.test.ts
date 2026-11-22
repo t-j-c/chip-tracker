@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useGameStore } from './gameStore';
+import type { RoomSnapshot } from '../types/game';
 
 const info = (name: string) => ({
   roomCode: 'ABC123',
@@ -39,5 +40,24 @@ describe('applySnapshot', () => {
 
     store.setRoomCode('BBBBBB');
     expect(useGameStore.getState().lastRevision).toBe(0);
+  });
+
+  it('rejects invalid revisions without corrupting the ordering guard', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const { applySnapshot } = useGameStore.getState();
+      expect(applySnapshot({ revision: 3, roomInfo: info('A') })).toBe(true);
+      for (const json of ['{}', '{"revision":"4"}', '{"revision":null}']) {
+        const invalid: RoomSnapshot = JSON.parse(json);
+        expect(applySnapshot(invalid)).toBe(false);
+      }
+      expect(applySnapshot({ revision: Number.NaN, roomInfo: info('Invalid') })).toBe(false);
+      expect(applySnapshot({ revision: 2, roomInfo: info('Old') })).toBe(false);
+      expect(useGameStore.getState().lastRevision).toBe(3);
+      expect(useGameStore.getState().lobbyPlayers[0].name).toBe('A');
+      expect(error).toHaveBeenCalledTimes(4);
+    } finally {
+      error.mockRestore();
+    }
   });
 });

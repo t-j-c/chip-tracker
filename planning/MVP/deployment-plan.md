@@ -60,7 +60,7 @@ Going serverless means replacing SignalR, which needs a long-lived server. That 
                          │                                      └─ PostToConnection (execute-api:ManageConnections)
                          └─ /ws     → API Gateway WebSocket API (stage "ws", throttled)
                                        ├─ $connect → Lambda "WsConnect" (Rooms: GetItem; Connections: PutItem)
-                                       └─ $default → MOCK integration (client keep-alive ping; no Lambda)
+                                       └─ $default → MOCK integration (client heartbeat ping → pong; no Lambda)
 
  Ops: CloudWatch Logs (14-day retention), alarms → SNS email, AWS Budget ($5/mo)
  None of: VPC, NAT, load balancer, EC2, ECS, ECR
