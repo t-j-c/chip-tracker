@@ -4,9 +4,9 @@
 |---|---|
 | **Status** | Ready to execute |
 | **Date** | 2026-11-22 |
-| **Scope** | `src/frontend` only, plus a one-line note in `planning/MVP/ui-ux-requirements.md`. No backend, API, data-model or e2e-test changes. |
+| **Scope** | `src/frontend`, this plan, a note in `planning/MVP/ui-ux-requirements.md`, and a `.gitignore` entry for e2e results. No backend, API, data-model or e2e-test changes. |
 | **Theme** | Retro cartoon: 1930s–60s rubber-hose / mid-century print look. Cream paper, thick ink outlines, hard offset shadows, flat bold colours, chunky display type, squash-and-stretch motion. |
-| **Validated** | All code in this plan was built and tested in a throwaway worktree before it was written down. Results: `tsc -b` clean, `oxlint` clean, **83/83** unit tests, `vite build` OK, full Playwright e2e suite **65/65 passed, 0 flaky**. The plan documents were then replayed step by step onto a clean checkout. Every phase compiled and passed its tests with the stated counts, and the final tree was byte-identical to the validated code (93 files). |
+| **Validation history** | The original plan reported clean `tsc -b`, `oxlint` and `vite build` runs, **83/83** unit tests, and **65/65** Playwright tests with no flakes. The phase listings were reconciled with the reviewed implementation; their byte-for-byte identity with the original validated tree has not been established. |
 
 ## 1. What changes for players
 

@@ -24,7 +24,7 @@ describe('useTableEvents', () => {
   beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks(); });
   afterEach(() => vi.useRealTimers());
 
-  it('treats first snapshot as history', () => {
+  it('treats the first snapshot as history and shows bubbles only for new actions', () => {
     const announce = vi.fn();
     const first = state([entry(1, { playerId: 'p2', action: 'Bet' })]);
     const { result, rerender } = renderHook(({ gs }) => useTableEvents(gs, 'p1', announce), { initialProps: { gs: first } });
@@ -35,19 +35,20 @@ describe('useTableEvents', () => {
     expect(result.current.bubbles).toEqual({});
   });
 
-  it('celebrates only hero wins', () => {
+  it('celebrates on this device only when the hero wins a pot', () => {
     const announce = vi.fn();
     const first = state([entry(1, { entryType: 'HandStarted' })]);
     const { result, rerender } = renderHook(({ gs }) => useTableEvents(gs, 'p1', announce), { initialProps: { gs: first } });
     rerender({ gs: state([...first.recentActivity!, entry(2, { entryType: 'PotWon', playerId: 'p2', playerName: 'Bob', amount: 40 })]) });
     expect(result.current.wins.p2).toEqual({ key: 2, amount: 40 });
+    expect(announce).toHaveBeenCalledWith('Bob won the pot');
     expect(confetti).not.toHaveBeenCalled();
     rerender({ gs: state([entry(3, { entryType: 'PotWon', playerId: 'p1', playerName: 'Alice', amount: 60 })]) });
     expect(confetti).toHaveBeenCalledTimes(1);
     expect(playSound).toHaveBeenCalledWith('win');
   });
 
-  it('plays turn sound for hero', () => {
+  it('plays the turn sound when the turn moves to the hero', () => {
     const { rerender } = renderHook(({ gs }) => useTableEvents(gs, 'p1', vi.fn()), { initialProps: { gs: state([], 'p2') } });
     expect(playSound).not.toHaveBeenCalled();
     rerender({ gs: state([], 'p1') });

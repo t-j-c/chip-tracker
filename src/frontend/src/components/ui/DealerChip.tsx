@@ -5,6 +5,10 @@ interface DealerChipProps {
   className?: string;
 }
 
+/**
+ * Exactly one element with aria-label="Dealer" may be on the game page at a time,
+ * and the hero's pill must contain the visible word "Dealer".
+ */
 export default function DealerChip({ variant, className }: DealerChipProps) {
   if (variant === 'puck') {
     return (

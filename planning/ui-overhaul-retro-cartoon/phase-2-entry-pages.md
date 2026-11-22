@@ -69,9 +69,7 @@ export function SeatMoveButtons({ name, index, count, disabled, onMove }: SeatMo
 }
 
 interface SeatOrderDialogProps {
-  /** Players in the current table order. */
   players: Player[];
-  /** Order already queued for the next hand, if any. */
   pendingOrder?: string[] | null;
   onSave: (orderedPlayerIds: string[]) => void;
   onClose: () => void;
@@ -224,12 +222,10 @@ export default function CreateRoomPage() {
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [selectedPreset, setSelectedPreset] = useState<PresetId | null>('standard');
-  // CR-4: collapsible custom form — collapsed when preset is active
   const [isCustomOpen, setIsCustomOpen] = useState(false);
 
   const apiUrl = import.meta.env.VITE_API_URL ?? '';
 
-  // Inline validation errors
   const stackError = startingStack < bigBlind ? 'Stack must be at least the big blind' : null;
   const sbError = smallBlind >= bigBlind ? 'Small blind must be less than big blind' : null;
   const hasValidationError = !!(stackError || sbError);
@@ -251,15 +247,12 @@ export default function CreateRoomPage() {
 
     try {
       const request: CreateRoomRequest = { startingStack, smallBlind, bigBlind };
-
       const res = await fetch(`${apiUrl}/api/rooms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
       });
-
       const data: CreateRoomResponse = await res.json();
-
       if (data.success && data.roomCode) {
         navigate(`/room/${data.roomCode}/lobby`);
       } else {
@@ -280,7 +273,6 @@ export default function CreateRoomPage() {
       <div className="retro-panel w-full max-w-md p-5">
         <h2 className="mb-3 font-display text-xl uppercase tracking-wide text-ink">Pick your stakes</h2>
 
-        {/* Quick-start presets */}
         <div className="mb-5 grid grid-cols-3 gap-2.5">
           {PRESETS.map((p) => {
             const selected = selectedPreset === p.id;
@@ -309,7 +301,6 @@ export default function CreateRoomPage() {
         </div>
 
         <form onSubmit={handleCreateRoom} className="space-y-5">
-          {/* CR-4: collapsible custom setup */}
           <div>
             <button
               type="button"
@@ -428,7 +419,6 @@ export default function JoinRoomPage() {
   const [joining, setJoining] = useState(false);
   const navigate = useNavigate();
   const { setRoomCode: storeRoomCode, setPlayerId: storePlayerId, setIsCreator } = useGameStore();
-
   const apiUrl = import.meta.env.VITE_API_URL ?? '';
 
   const handleLookupRoom = async (code?: string) => {
@@ -450,7 +440,6 @@ export default function JoinRoomPage() {
     }
   };
 
-  // Auto-lookup when navigated from QR code scan
   useEffect(() => {
     if (roomCode) handleLookupRoom(roomCode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -501,7 +490,6 @@ export default function JoinRoomPage() {
       <ChipLogo subtitle="Join Game" />
 
       <div className="retro-panel w-full max-w-md space-y-4 p-5">
-        {/* JR-3: shrink code input when room is found */}
         <div className={cn('transition-all duration-300', roomInfo && 'scale-[0.98] opacity-80')}>
           <label htmlFor="room-code" className="mb-1.5 block font-display text-sm uppercase tracking-wide text-ink">
             Room Code
@@ -633,7 +621,6 @@ export default function LobbyPage() {
     applySnapshot,
     setError,
   } = useGameStore();
-  // Pushed events and resyncs on every (re)connect keep the roster and settings current.
   useRoomEvents(roomCode, playerId);
 
   const [playerName, setPlayerName] = useState('');
@@ -658,7 +645,6 @@ export default function LobbyPage() {
     }
   }, [roomCode, playerId, setRoomCode, setPlayerId, setIsCreator]);
 
-  // Once the game starts (gameState becomes non-null), navigate to the game
   useEffect(() => {
     if (gameState && roomCode) {
       navigate(`/room/${roomCode}`);
@@ -670,7 +656,6 @@ export default function LobbyPage() {
     if (!roomCode || !playerName.trim()) return;
     setJoining(true);
     setJoinError(null);
-
     try {
       const data = await api.joinRoom(roomCode, playerName.trim());
       setPlayerId(data.playerId);
@@ -690,10 +675,8 @@ export default function LobbyPage() {
     if (!roomCode || !playerId) return;
     setStarting(true);
     setError(null);
-
     try {
       applySnapshot(await api.startGame(roomCode, playerId));
-      // Navigation happens once gameState is set (from this response or the pushed gameStarted event)
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to reach server: ${err}`);
     } finally {
@@ -705,7 +688,6 @@ export default function LobbyPage() {
     if (!roomCode || !playerId || reordering) return;
     setReordering(true);
     setError(null);
-
     try {
       const order = moveSeat(lobbyPlayers.map(p => p.playerId), index, delta);
       applySnapshot(await api.reorderSeats(roomCode, playerId, order));
@@ -755,7 +737,6 @@ export default function LobbyPage() {
           </span>
         </div>
 
-        {/* Room code + invite */}
         <section className="retro-panel p-5 text-center">
           <p className="mb-2 font-display text-sm uppercase tracking-[0.25em] text-ink-soft">Room Code</p>
           <button
@@ -768,7 +749,6 @@ export default function LobbyPage() {
             {copied ? <Check aria-hidden="true" size={20} /> : <Copy aria-hidden="true" size={18} />}
           </button>
 
-          {/* Game settings summary (LB-3) */}
           {roomSettings && (
             <div className="mt-3 flex justify-center gap-2 text-xs font-semibold">
               <span className="rounded-full border-2 border-ink bg-paper px-2.5 py-0.5 tabular-nums">
@@ -780,7 +760,6 @@ export default function LobbyPage() {
             </div>
           )}
 
-          {/* QR code: the only role="img" on this page (e2e TC01 uses getByRole('img')). */}
           <div className="mx-auto mt-5 w-fit -rotate-2 rounded-xl border-[3px] border-ink bg-white p-3 shadow-hard">
             <QRCodeSVG value={joinUrl} size={184} />
             <p className="mt-1 font-display text-xs uppercase tracking-widest text-ink">Scan to join</p>
@@ -792,7 +771,6 @@ export default function LobbyPage() {
           </RetroButton>
         </section>
 
-        {/* Player list */}
         <section className="retro-panel p-5">
           <div className="mb-3 flex items-center justify-between gap-2">
             <h2 className="font-display text-lg uppercase tracking-wide text-ink">At the table</h2>
@@ -863,7 +841,6 @@ export default function LobbyPage() {
           )}
         </section>
 
-        {/* Join form */}
         {!alreadyJoined && (
           <form onSubmit={handleJoin} className="retro-panel space-y-3 p-5">
             <div>
@@ -912,7 +889,6 @@ export default function LobbyPage() {
         )}
       </div>
 
-      {/* Sticky Start Game button */}
       {isCreator && (
         <div
           className="fixed inset-x-0 bottom-0 border-t-[3px] border-ink bg-paper-deep px-4 pt-3"

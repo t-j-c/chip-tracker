@@ -75,13 +75,10 @@ This adds:
 - **Reduced-motion rules**, for both the OS setting and the in-app toggle.
 
 ```css
-/* Tailwind v4 */
 @import "tailwindcss";
 
-/* Phones held sideways: table on the left, controls in a side column. */
 @custom-variant landscape-short (@media (orientation: landscape) and (max-height: 500px));
 
-/* ── Retro cartoon design tokens ─────────────────────────── */
 @theme {
   --color-ink: #1B1718;
   --color-ink-soft: #4A4044;
@@ -99,25 +96,19 @@ This adds:
   --color-royal: #2F5DA8;
   --color-bubblegum: #F28DB2;
   --color-grape: #5B3A8C;
-
   --font-sans: 'Fredoka', system-ui, sans-serif;
   --font-display: 'Lilita One', 'Fredoka', system-ui, sans-serif;
   --font-comic: 'Bangers', 'Lilita One', system-ui, sans-serif;
-
   --shadow-hard-sm: 2px 2px 0 0 #1B1718;
   --shadow-hard: 4px 4px 0 0 #1B1718;
   --shadow-hard-lg: 6px 6px 0 0 #1B1718;
-
   --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-anticipate: cubic-bezier(0.36, 0, 0.66, -0.56);
 }
 
-/* ── Base ────────────────────────────────────────────────── */
 html, body { margin: 0; padding: 0; }
-
 body {
   background-color: var(--color-paper);
-  /* halftone dots */
   background-image: radial-gradient(circle, rgb(27 23 24 / 0.07) 1px, transparent 1.6px);
   background-size: 14px 14px;
   color: var(--color-ink);
@@ -125,15 +116,11 @@ body {
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
 }
-
 #root { min-height: 100dvh; }
 * { box-sizing: border-box; }
-
 button, a, [role=button] { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-
 :focus-visible { outline: 3px solid var(--color-royal); outline-offset: 3px; }
 
-/* ── Reusable retro pieces ───────────────────────────────── */
 @layer components {
   .retro-panel {
     background-color: var(--color-card);
@@ -141,7 +128,6 @@ button, a, [role=button] { touch-action: manipulation; -webkit-tap-highlight-col
     border-radius: 1.25rem;
     box-shadow: var(--shadow-hard-lg);
   }
-
   .retro-btn {
     display: inline-flex;
     align-items: center;
@@ -160,7 +146,6 @@ button, a, [role=button] { touch-action: manipulation; -webkit-tap-highlight-col
   .retro-btn:hover:not(:disabled) { filter: brightness(1.06); }
   .retro-btn:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: 1px 1px 0 0 var(--color-ink); }
   .retro-btn:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: var(--shadow-hard-sm); }
-
   .retro-input {
     width: 100%;
     background-color: var(--color-card);
@@ -171,16 +156,13 @@ button, a, [role=button] { touch-action: manipulation; -webkit-tap-highlight-col
     font-size: 1rem;
   }
   .retro-input:focus { outline: none; border-color: var(--color-royal); }
-
   .text-outline {
     -webkit-text-stroke: 2px var(--color-ink);
     paint-order: stroke fill;
   }
-
   .sunburst {
     background: repeating-conic-gradient(from 0deg, var(--color-mustard) 0deg 12deg, #F8CF66 12deg 24deg);
   }
-
   .felt {
     background-color: var(--color-felt);
     background-image:
@@ -188,7 +170,6 @@ button, a, [role=button] { touch-action: manipulation; -webkit-tap-highlight-col
       radial-gradient(circle, rgb(0 0 0 / 0.12) 1px, transparent 1.6px);
     background-size: 100% 100%, 10px 10px;
   }
-
   .table-rail {
     border: 10px solid var(--color-rail);
     box-shadow:
@@ -196,149 +177,117 @@ button, a, [role=button] { touch-action: manipulation; -webkit-tap-highlight-col
       0 0 0 3px var(--color-ink),
       6px 8px 0 3px var(--color-ink);
   }
-
   .card-back {
     background-color: var(--color-tomato-deep);
     background-image:
       repeating-linear-gradient(45deg, rgb(247 235 207 / 0.4) 0 2px, transparent 2px 6px),
       repeating-linear-gradient(-45deg, rgb(247 235 207 / 0.4) 0 2px, transparent 2px 6px);
   }
-
-  /* Static rings: still shown when reduced motion stops the pulse animations. */
   .turn-ring { box-shadow: 0 0 0 4px var(--color-mustard), 0 0 0 7px var(--color-ink); }
   .winner-ring { box-shadow: 0 0 0 5px var(--color-mustard), 0 0 22px 8px rgb(242 182 50 / 0.7); }
-
-  /* The table stage is a size container: seats, chips and the pot shrink on short stages
-     (small phones, landscape, or while the bet picker is open). */
   .table-stage { container-type: size; }
   @container (max-height: 440px) {
     .table-piece { scale: 0.82; }
   }
-
-  /* Money text drawn from data-amount so Playwright's getByText never sees it (see test contract). */
+  /* Keep the decorative amount out of Playwright's text selectors. */
   .win-float::after { content: attr(data-amount); }
 }
 
-/* ── Motion ──────────────────────────────────────────────── */
 @keyframes popIn {
-  0%   { opacity: 0; transform: scale(0.6); }
-  70%  { opacity: 1; transform: scale(1.06); }
+  0% { opacity: 0; transform: scale(0.6); }
+  70% { opacity: 1; transform: scale(1.06); }
   100% { opacity: 1; transform: scale(1); }
 }
 .animate-pop-in { animation: popIn 320ms var(--ease-pop) both; }
-
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .animate-fade-in { animation: fadeIn 180ms ease-out both; }
-
 @keyframes turnPulse {
   0%, 100% { box-shadow: 0 0 0 3px var(--color-mustard), 0 0 0 6px var(--color-ink); }
-  50%      { box-shadow: 0 0 0 7px var(--color-mustard), 0 0 0 10px var(--color-ink); }
+  50% { box-shadow: 0 0 0 7px var(--color-mustard), 0 0 0 10px var(--color-ink); }
 }
 .animate-turn-pulse { animation: turnPulse 1.2s ease-in-out infinite; }
-
 @keyframes winnerGlow {
   0%, 100% { box-shadow: 0 0 0 4px var(--color-mustard), 0 0 18px 6px rgb(242 182 50 / 0.6); }
-  50%      { box-shadow: 0 0 0 8px var(--color-mustard), 0 0 30px 12px rgb(242 182 50 / 0.8); }
+  50% { box-shadow: 0 0 0 8px var(--color-mustard), 0 0 30px 12px rgb(242 182 50 / 0.8); }
 }
 .animate-winner-glow { animation: winnerGlow 0.9s ease-in-out infinite; }
-
 @keyframes bob {
   0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-4px); }
+  50% { transform: translateY(-4px); }
 }
 .animate-bob { animation: bob 0.9s ease-in-out infinite; }
-
 @keyframes bubble {
-  0%   { opacity: 0; transform: scale(0.4) rotate(-8deg); }
-  12%  { opacity: 1; transform: scale(1.12) rotate(3deg); }
-  22%  { opacity: 1; transform: scale(1) rotate(0deg); }
-  80%  { opacity: 1; transform: scale(1) translateY(0); }
+  0% { opacity: 0; transform: scale(0.4) rotate(-8deg); }
+  12% { opacity: 1; transform: scale(1.12) rotate(3deg); }
+  22% { opacity: 1; transform: scale(1) rotate(0deg); }
+  80% { opacity: 1; transform: scale(1) translateY(0); }
   100% { opacity: 0; transform: scale(0.95) translateY(-8px); }
 }
 .animate-bubble { animation: bubble 1600ms var(--ease-pop) forwards; }
-
 @keyframes floatUp {
-  0%   { opacity: 0; transform: translateY(8px) scale(0.7); }
-  15%  { opacity: 1; transform: translateY(0) scale(1.1); }
-  70%  { opacity: 1; transform: translateY(-24px) scale(1); }
+  0% { opacity: 0; transform: translateY(8px) scale(0.7); }
+  15% { opacity: 1; transform: translateY(0) scale(1.1); }
+  70% { opacity: 1; transform: translateY(-24px) scale(1); }
   100% { opacity: 0; transform: translateY(-40px) scale(1); }
 }
 .animate-float-up { animation: floatUp 2200ms ease-out forwards; }
-
 @keyframes dealIn {
-  0%   { opacity: 0; transform: translateY(-28px) rotate(-25deg) scale(0.6); }
+  0% { opacity: 0; transform: translateY(-28px) rotate(-25deg) scale(0.6); }
   100% { opacity: 1; transform: translateY(0) rotate(0deg) scale(1); }
 }
 .animate-deal-in { animation: dealIn 320ms var(--ease-pop) both; }
-
 @keyframes splash {
-  0%   { opacity: 0; transform: scale(0.3) rotate(-10deg); }
-  18%  { opacity: 1; transform: scale(1.15) rotate(2deg); }
-  28%  { opacity: 1; transform: scale(1) rotate(-2deg); }
-  80%  { opacity: 1; transform: scale(1) rotate(-2deg); }
+  0% { opacity: 0; transform: scale(0.3) rotate(-10deg); }
+  18% { opacity: 1; transform: scale(1.15) rotate(2deg); }
+  28% { opacity: 1; transform: scale(1) rotate(-2deg); }
+  80% { opacity: 1; transform: scale(1) rotate(-2deg); }
   100% { opacity: 0; transform: scale(1.2) rotate(-2deg); }
 }
 .animate-splash { animation: splash 1400ms var(--ease-pop) forwards; }
-
 @keyframes chipFlight {
-  0%   { left: var(--from-x); top: var(--from-y); opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  85%  { opacity: 1; }
+  0% { left: var(--from-x); top: var(--from-y); opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  85% { opacity: 1; }
   100% { left: var(--to-x); top: var(--to-y); opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
 }
 .animate-chip-flight { animation: chipFlight 520ms cubic-bezier(0.5, 0, 0.3, 1) forwards; }
-
 @keyframes countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 .animate-countdown { animation: countdown linear forwards; transform-origin: left center; }
-
 @keyframes slideInRight {
   from { opacity: 0; transform: translateX(24px); }
-  to   { opacity: 1; transform: translateX(0); }
+  to { opacity: 1; transform: translateX(0); }
 }
 .animate-slide-in { animation: slideInRight 0.3s ease-out both; }
-
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .animate-slide-up { animation: slideUp 0.22s var(--ease-pop) both; }
-
 @keyframes slideDown {
   from { opacity: 0; transform: translateY(-100%); }
-  to   { opacity: 1; transform: translateY(0); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .animate-slide-down { animation: slideDown 0.28s var(--ease-pop) both; }
-
 @keyframes ellipsis {
-  0%   { content: '.'; }
-  33%  { content: '..'; }
-  66%  { content: '...'; }
-  100% { content: '.'; }
+  0% { content: '.'; } 33% { content: '..'; } 66% { content: '...'; } 100% { content: '.'; }
 }
-.animate-ellipsis::after {
-  content: '.';
-  animation: ellipsis 1.2s steps(1) infinite;
-}
-
+.animate-ellipsis::after { content: '.'; animation: ellipsis 1.2s steps(1) infinite; }
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
-  20%       { transform: translateX(-6px); }
-  40%       { transform: translateX(6px); }
-  60%       { transform: translateX(-4px); }
-  80%       { transform: translateX(4px); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
 }
 .animate-shake { animation: shake 0.3s ease-in-out both; }
-
 @keyframes foldFlip {
-  0%   { transform: perspective(400px) rotateY(0deg); }
-  50%  { transform: perspective(400px) rotateY(90deg); }
+  0% { transform: perspective(400px) rotateY(0deg); }
+  50% { transform: perspective(400px) rotateY(90deg); }
   100% { transform: perspective(400px) rotateY(0deg); }
 }
 .animate-fold-flip { animation: foldFlip 0.4s ease-in-out both; }
-
 @keyframes spinSlow { to { transform: rotate(360deg); } }
 .animate-spin-slow { animation: spinSlow 18s linear infinite; }
 
-/* ── Reduced motion: OS setting or the in-app "Reduce Motion" toggle ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 1ms !important;
@@ -400,7 +349,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// 9 cartoon avatar fills, one per seat. All pass WCAG AA with ink (#1B1718) text.
 const AVATAR_COLORS = [
   '#EF5B3F',
   '#3BB8AE',
@@ -463,7 +411,6 @@ export interface SettingsStore extends Settings {
   toggle: (key: keyof Settings) => void;
 }
 
-/** Device-local preferences (sound, vibration, motion), persisted in localStorage. */
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   ...load(),
   toggle: (key) => {
@@ -480,7 +427,6 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 ```ts
 import { useSettingsStore } from '../stores/settingsStore';
 
-/** True when the OS asks for reduced motion or the in-app "Reduce Motion" toggle is on. */
 export function prefersReducedMotion(): boolean {
   if (useSettingsStore.getState().reduceMotion) return true;
   return typeof window !== 'undefined'
@@ -494,7 +440,6 @@ export function prefersReducedMotion(): boolean {
 ```ts
 import { useSettingsStore } from '../stores/settingsStore';
 
-/** Vibration patterns (ms). Progressive enhancement: iOS Safari has no Vibration API. */
 export const HAPTICS: Record<'tick' | 'snap' | 'action' | 'turn' | 'win' | 'error', number | number[]> = {
   tick: 3,
   snap: 10,
@@ -524,7 +469,6 @@ import { useSettingsStore } from '../stores/settingsStore';
 
 export type SoundName = 'turn' | 'chip' | 'check' | 'fold' | 'deal' | 'win' | 'error';
 
-// All sounds are synthesized with Web Audio: no audio assets to license, load or cache.
 let context: AudioContext | null = null;
 
 function getContext(): AudioContext | null {
@@ -537,7 +481,6 @@ function getContext(): AudioContext | null {
   return context;
 }
 
-/** Call from a user gesture (pointerdown) so later sounds pass the browser autoplay policy. */
 export function unlockAudio(): void {
   getContext();
 }
@@ -602,9 +545,7 @@ const RECIPES: Record<SoundName, (c: AudioContext, t: number) => void> = {
     tone(c, { freq: 180, start: t, duration: 0.08, type: 'square', gain: 0.15 });
     tone(c, { freq: 160, start: t + 0.11, duration: 0.08, type: 'square', gain: 0.15 });
   },
-  fold: (c, t) => {
-    noise(c, { start: t, duration: 0.22, gain: 0.25, filterFreq: 1200 });
-  },
+  fold: (c, t) => noise(c, { start: t, duration: 0.22, gain: 0.25, filterFreq: 1200 }),
   deal: (c, t) => {
     for (let i = 0; i < 3; i++) noise(c, { start: t + i * 0.08, duration: 0.06, gain: 0.25, filterFreq: 2500 });
   },
@@ -613,9 +554,7 @@ const RECIPES: Record<SoundName, (c: AudioContext, t: number) => void> = {
       tone(c, { freq, start: t + i * 0.09, duration: 0.22, type: 'triangle', gain: 0.22 }),
     );
   },
-  error: (c, t) => {
-    tone(c, { freq: 220, start: t, duration: 0.25, type: 'sawtooth', gain: 0.12, slideTo: 110 });
-  },
+  error: (c, t) => tone(c, { freq: 220, start: t, duration: 0.25, type: 'sawtooth', gain: 0.12, slideTo: 110 }),
 };
 
 export function playSound(name: SoundName): void {
@@ -633,7 +572,6 @@ export function playSound(name: SoundName): void {
 ### Step 1.11: Create `src/frontend/src/lib/chips.ts`
 
 ```ts
-/** How many cartoon chips (1–5) to draw for an amount, growing logarithmically in big blinds. */
 export function chipCountForAmount(amount: number, bigBlind: number): number {
   if (amount <= 0) return 0;
   const unit = Math.max(1, bigBlind);
@@ -734,19 +672,13 @@ const retroButton = cva('retro-btn', {
       lg: 'min-h-14 px-5 text-lg',
       xl: 'min-h-16 px-6 text-xl',
     },
-    block: {
-      true: 'w-full',
-      false: '',
-    },
+    block: { true: 'w-full', false: '' },
   },
   defaultVariants: { tone: 'cream', size: 'md', block: false },
 });
 
-export interface RetroButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof retroButton> {}
+export interface RetroButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof retroButton> {}
 
-/** Chunky outlined cartoon button that "sinks" into its hard shadow when pressed. Defaults to type="button". */
 export default function RetroButton({ className, tone, size, block, type = 'button', ...props }: RetroButtonProps) {
   return <button type={type} className={cn(retroButton({ tone, size, block }), className)} {...props} />;
 }
@@ -766,16 +698,11 @@ const SIZES = {
 
 interface AvatarProps {
   name: string;
-  /** Seat index: the player's position in the table/lobby player list. */
   colorIndex: number;
   size?: keyof typeof SIZES;
   className?: string;
 }
 
-/**
- * Glossy cartoon "sticker" avatar with the player's initial. Always aria-hidden: the player's
- * name is rendered as text next to it, and hiding it keeps button names exact (e.g. "Bob").
- */
 export default function Avatar({ name, colorIndex, size = 'md', className }: AvatarProps) {
   const initial = name.trim().charAt(0).toUpperCase() || '?';
   return (
@@ -803,16 +730,12 @@ const INK = '#1B1718';
 const CREAM = '#F7EBCF';
 
 interface ChipStackProps {
-  /** Number of chips to draw (clamped to 1–5). Use chipCountForAmount() from lib/chips. */
   count: number;
-  /** Rendered width in px. */
   size?: number;
-  /** Rotates the colour sequence so neighbouring stacks look different. */
   colorOffset?: number;
   className?: string;
 }
 
-/** A decorative stack of outlined cartoon poker chips. */
 export default function ChipStack({ count, size = 28, colorOffset = 0, className }: ChipStackProps) {
   const n = Math.max(1, Math.min(5, Math.round(count)));
   const width = 40;
@@ -867,14 +790,13 @@ export default function ChipStack({ count, size = 28, colorOffset = 0, className
 import { cn } from '@/lib/utils';
 
 interface DealerChipProps {
-  /** "puck": round "D" button on an opponent seat. "pill": "Dealer" label in the hero panel. */
   variant: 'puck' | 'pill';
   className?: string;
 }
 
 /**
- * The dealer button. Exactly one element with aria-label="Dealer" may be on the game page at a
- * time (e2e TC14), and the hero's pill must contain the visible word "Dealer" (TC11, TC62).
+ * Exactly one element with aria-label="Dealer" may be on the game page at a time,
+ * and the hero's pill must contain the visible word "Dealer".
  */
 export default function DealerChip({ variant, className }: DealerChipProps) {
   if (variant === 'puck') {
@@ -914,10 +836,6 @@ import { cn } from '@/lib/utils';
 
 const TAG = 'inline-flex items-center rounded-full border-2 border-ink px-1.5 py-px font-display text-[11px] uppercase leading-4 tracking-wide';
 
-/**
- * One status pill for a player, by priority: Eliminated > Deciding (rebuy) > All In > Folded.
- * Exact texts are part of the e2e contract ("All In" with a space — never "ALL IN!" elsewhere).
- */
 export default function StatusTag({ player, showFolded = false }: { player: Player; showFolded?: boolean }) {
   if (player.isEliminated) return <span className={cn(TAG, 'bg-ink text-paper')}>Eliminated</span>;
   if (player.isAwaitingRebuy) return <span className={cn(TAG, 'bg-mustard text-ink')}>Deciding</span>;
@@ -937,7 +855,6 @@ import { cn } from '@/lib/utils';
 const INK = '#1B1718';
 const CREAM = '#F7EBCF';
 
-/** Cartoon poker-chip mascot (also the favicon). Decorative. */
 export function ChipLogoMark({ size = 48, className }: { size?: number; className?: string }) {
   return (
     <svg aria-hidden="true" focusable="false" width={size} height={size} viewBox="0 0 64 64" className={className}>
@@ -973,7 +890,6 @@ interface ChipLogoProps {
   className?: string;
 }
 
-/** Page hero: the chip mascot on a sunburst with the outlined "Deal Me In" wordmark (or a page title). */
 export default function ChipLogo({ subtitle, className }: ChipLogoProps) {
   return (
     <div className={cn('flex flex-col items-center gap-2', className)}>
@@ -1005,12 +921,10 @@ interface AppShellProps {
 export default function AppShell({ children }: AppShellProps) {
   const reduceMotion = useSettingsStore(s => s.reduceMotion);
 
-  // In-app "Reduce Motion" toggle: index.css keys off this attribute.
   useEffect(() => {
     document.documentElement.dataset.reduceMotion = String(reduceMotion);
   }, [reduceMotion]);
 
-  // Browsers only allow audio after a user gesture; resume the AudioContext on every tap.
   useEffect(() => {
     window.addEventListener('pointerdown', unlockAudio);
     return () => window.removeEventListener('pointerdown', unlockAudio);
@@ -1025,40 +939,25 @@ export default function AppShell({ children }: AppShellProps) {
 The props are the same as before, plus two new optional ones: `centerTitle` and `closeLabel`.
 
 ```tsx
-import type { ReactNode } from 'react'
-import * as Dialog from '@radix-ui/react-dialog'
-import { X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import type { ReactNode } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface DialogShellProps {
-  /** Whether the dialog is open. */
-  open?: boolean
-  /** Called when open state changes (triggered by close button, overlay click, etc). */
-  onOpenChange?: (open: boolean) => void
-  /** Dialog title. */
-  title: string
-  /** Dialog content. */
-  children: ReactNode
-  /** Optional description for aria-describedby. */
-  ariaDescribedBy?: string
-  /** Optional test ID. */
-  testId?: string
-  /** Optional size class. Defaults to max-w-sm (medium). */
-  sizeClass?: string
-  /** Whether to show a close button. Defaults to true. */
-  showCloseButton?: boolean
-  /** Whether to use a fixed open state (no close button interaction). Defaults to false. */
-  isFixed?: boolean
-  /** Centres the title sticker (for close-less dialogs like Showdown). */
-  centerTitle?: boolean
-  /** Accessible name of the close button. */
-  closeLabel?: string
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  title: string;
+  children: ReactNode;
+  ariaDescribedBy?: string;
+  testId?: string;
+  sizeClass?: string;
+  showCloseButton?: boolean;
+  isFixed?: boolean;
+  centerTitle?: boolean;
+  closeLabel?: string;
 }
 
-/**
- * Shared Radix dialog shell: a cream cartoon card with a tilted title sticker that pops in
- * over a dimmed table.
- */
 export function DialogShell({
   open = true,
   onOpenChange,
@@ -1102,7 +1001,7 @@ export function DialogShell({
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-  )
+  );
 }
 ```
 

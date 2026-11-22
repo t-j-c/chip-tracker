@@ -40,7 +40,7 @@ Follow the repository skill [`.agents/skills/e2e-test-loop/SKILL.md`](../../.age
    ..\..\.agents\skills\e2e-test-loop\scripts\summarize-results.ps1
    ```
 
-   Expected: `STATS passed=65 failed=0 flaky=0 skipped=0` and `GREEN`. This exact result was measured on the validated implementation.
+   Expected: `STATS passed=65 failed=0 flaky=0 skipped=0` and `GREEN`. This result was reported for the originally validated implementation.
 
 3. Delete `tests/e2e/results.json` afterwards.
 

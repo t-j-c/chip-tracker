@@ -12,12 +12,12 @@ describe('tableLayout', () => {
     expect(spot.seat).toEqual({ x: 50, y: 10 });
     expect(spot.bet).toEqual({ x: 50, y: 28 });
   });
-  it('goes left, top, right for three opponents', () => {
+  it('goes left, top, right for three opponents (clockwise from the hero)', () => {
     expect(opponentLayout(3).map(s => s.seat)).toEqual([
       { x: 12, y: 50 }, { x: 50, y: 10 }, { x: 88, y: 50 },
     ]);
   });
-  it('returns one spot per opponent with bets closer to centre', () => {
+  it('returns one spot per opponent with bets closer to the centre than seats', () => {
     const spots = opponentLayout(8);
     expect(spots).toHaveLength(8);
     for (const { seat, bet } of spots) {

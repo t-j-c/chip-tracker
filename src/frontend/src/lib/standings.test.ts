@@ -8,7 +8,7 @@ const player = (playerId: string, name: string, stack: number): Player => ({
 });
 
 describe('computeStandings', () => {
-  it('ranks ties and keeps seat index', () => {
+  it('ranks by stack with shared ranks for ties and keeps the seat index', () => {
     const standings = computeStandings([
       player('a', 'Alice', 500), player('b', 'Bob', 1500),
       player('c', 'Cara', 500), player('d', 'Dan', 0),
@@ -18,7 +18,7 @@ describe('computeStandings', () => {
     ]);
     expect(standings[0].share).toBeCloseTo(0.6);
   });
-  it('reports zero share', () => {
+  it('reports zero share when no chips are in stacks', () => {
     expect(computeStandings([player('a', 'Alice', 0)])[0].share).toBe(0);
   });
 });

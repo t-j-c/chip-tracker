@@ -390,7 +390,6 @@ export function ActivityHistoryModal({
         setEntries(data.entries || [])
       })
       .catch(() => {
-        // Use fallback entries on error
         setEntries(fallbackEntriesRef.current)
       })
       .finally(() => {
@@ -398,7 +397,6 @@ export function ActivityHistoryModal({
       })
   }, [open, roomCode])
 
-  // Group entries by handNumber, descending, and reverse within each group
   const grouped: GroupedEntries[] = []
   const handMap = new Map<number, ActivityEntry[]>()
 
@@ -410,7 +408,6 @@ export function ActivityHistoryModal({
     handMap.get(handNum)!.push(entry)
   }
 
-  // Sort hands descending and reverse entries within each hand (newest first)
   Array.from(handMap.entries())
     .sort(([a], [b]) => b - a)
     .forEach(([handNumber, handEntries]) => {

@@ -148,7 +148,7 @@ export default function AmountPicker({
   const handleSliderChange = ([v]: number[]) => {
     const value = clamp(v, min, max);
     if (isPointerDragging.current) {
-      const nearest = snapPoints.reduce((best, p) => (Math.abs(p - v) < Math.abs(best - v) ? p : best), v);
+      const nearest = snapPoints.reduce((best, p) => Math.abs(p - v) < Math.abs(best - v) ? p : best, v);
       const snapped = Math.abs(nearest - v) <= snapThreshold ? nearest : v;
       vibrate(snapped !== v ? HAPTICS.snap : HAPTICS.tick);
       setAmount(snapped);
@@ -438,7 +438,6 @@ export default function ActionBar({ gameState, playerId, onAction, isYourTurn }:
           Fold
           <Kbd>F</Kbd>
         </RetroButton>
-
         {canCheck ? (
           <RetroButton
             onClick={() => fireAction(PokerAction.Check)}

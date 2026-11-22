@@ -112,6 +112,7 @@ button, a, [role=button] { touch-action: manipulation; -webkit-tap-highlight-col
   @container (max-height: 440px) {
     .table-piece { scale: 0.82; }
   }
+  /* Keep the decorative amount out of Playwright's text selectors. */
   .win-float::after { content: attr(data-amount); }
 }
 
