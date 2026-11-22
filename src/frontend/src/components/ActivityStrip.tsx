@@ -1,3 +1,4 @@
+import { Megaphone, ChevronRight } from 'lucide-react'
 import { formatActivityEntry } from '@/lib/activityFormat'
 import type { ActivityEntry } from '@/types/game'
 
@@ -15,18 +16,18 @@ export function ActivityStrip({ entries, onOpenHistory }: ActivityStripProps) {
     return null
   }
 
-  const formattedText = formatActivityEntry(mostRecentEntry)
-
   return (
     <button
       data-testid="activity-strip"
       onClick={onOpenHistory}
       aria-label="Activity history"
-      className="w-full bg-accent-info/20 border-b border-accent-info/40 px-4 py-2 flex items-center justify-center gap-2 hover:bg-accent-info/30 transition-colors"
+      className="flex w-full shrink-0 items-center gap-2 border-y-[3px] border-ink bg-mustard px-3 py-1.5 text-left text-ink transition-[filter] hover:brightness-105"
     >
-      <span data-testid="activity-strip-text" className="text-sm text-accent-info font-semibold">
-        {formattedText}
+      <Megaphone aria-hidden="true" size={16} className="shrink-0 -rotate-12" />
+      <span key={mostRecentEntry.sequence} data-testid="activity-strip-text" className="animate-slide-in min-w-0 flex-1 truncate text-sm font-semibold">
+        {formatActivityEntry(mostRecentEntry)}
       </span>
+      <ChevronRight aria-hidden="true" size={16} className="shrink-0" />
     </button>
   )
 }

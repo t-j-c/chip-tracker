@@ -1,31 +1,22 @@
-import type { ReactNode } from 'react'
-import * as Dialog from '@radix-ui/react-dialog'
+import type { ReactNode } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface DialogShellProps {
-  /** Whether the dialog is open. */
-  open?: boolean
-  /** Called when open state changes (triggered by close button, overlay click, etc). */
-  onOpenChange?: (open: boolean) => void
-  /** Dialog title. */
-  title: string
-  /** Dialog content. */
-  children: ReactNode
-  /** Optional description for aria-describedby. */
-  ariaDescribedBy?: string
-  /** Optional test ID. */
-  testId?: string
-  /** Optional size class. Defaults to max-w-sm (medium). */
-  sizeClass?: string
-  /** Whether to show a close button. Defaults to true. */
-  showCloseButton?: boolean
-  /** Whether to use a fixed open state (no close button interaction). Defaults to false. */
-  isFixed?: boolean
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  title: string;
+  children: ReactNode;
+  ariaDescribedBy?: string;
+  testId?: string;
+  sizeClass?: string;
+  showCloseButton?: boolean;
+  isFixed?: boolean;
+  centerTitle?: boolean;
+  closeLabel?: string;
 }
 
-/**
- * Shared Radix dialog shell for consistent modal styling and behavior.
- * Encapsulates overlay, content, title, and close button patterns.
- */
 export function DialogShell({
   open = true,
   onOpenChange,
@@ -36,34 +27,38 @@ export function DialogShell({
   sizeClass = 'max-w-sm',
   showCloseButton = true,
   isFixed = false,
+  centerTitle = false,
+  closeLabel = 'Close dialog',
 }: DialogShellProps) {
   return (
     <Dialog.Root open={open} onOpenChange={isFixed ? undefined : onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50" />
+        <Dialog.Overlay className="animate-fade-in fixed inset-0 z-50 bg-ink/60 backdrop-blur-[2px]" />
         <Dialog.Content
-          className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full ${sizeClass} p-6 rounded-2xl bg-surface-elevated shadow-2xl`}
+          className={cn('fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 outline-none', sizeClass)}
           aria-describedby={ariaDescribedBy}
           data-testid={testId}
         >
-          <div className="flex items-center justify-between mb-4">
-            <Dialog.Title className="text-2xl font-bold uppercase tracking-widest text-gold">
-              {title}
-            </Dialog.Title>
-            {showCloseButton && !isFixed && (
-              <Dialog.Close asChild>
-                <button
-                  aria-label="Close dialog"
-                  className="rounded-md hover:bg-surface-card p-1 text-text-secondary hover:text-text-primary transition-all"
-                >
-                  ✕
-                </button>
-              </Dialog.Close>
-            )}
+          <div className="retro-panel animate-pop-in max-h-[85dvh] overflow-y-auto p-5">
+            <div className={cn('mb-4 flex items-start gap-3', centerTitle ? 'justify-center' : 'justify-between')}>
+              <Dialog.Title className="inline-block -rotate-2 rounded-xl border-[3px] border-ink bg-mustard px-3 py-0.5 font-display text-2xl uppercase leading-tight tracking-wide text-ink shadow-hard-sm">
+                {title}
+              </Dialog.Title>
+              {showCloseButton && !isFixed && (
+                <Dialog.Close asChild>
+                  <button
+                    aria-label={closeLabel}
+                    className="retro-btn h-10 w-10 shrink-0 bg-card text-ink"
+                  >
+                    <X aria-hidden="true" size={18} />
+                  </button>
+                </Dialog.Close>
+              )}
+            </div>
+            {children}
           </div>
-          {children}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-  )
+  );
 }

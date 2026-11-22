@@ -1,4 +1,7 @@
+import { Coins } from 'lucide-react';
+import { formatMoney } from '@/lib/utils';
 import { DialogShell } from './DialogShell';
+import RetroButton from './ui/RetroButton';
 
 interface RebuyDialogProps {
   startingStack: number;
@@ -14,26 +17,22 @@ export default function RebuyDialog({ startingStack, onRebuy, onCashOut }: Rebuy
       title="You're Out of Chips"
       testId="rebuy-dialog"
       showCloseButton={false}
+      centerTitle
       ariaDescribedBy="rebuy-description"
     >
-      <p id="rebuy-description" className="text-text-secondary text-center text-sm mb-5">
-        Buy back in for ${startingStack.toLocaleString()}, or cash out and leave the table.
+      <div aria-hidden="true" className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full border-[3px] border-ink bg-paper shadow-hard-sm">
+        <Coins size={30} className="text-ink" />
+      </div>
+      <p id="rebuy-description" className="mb-5 text-center text-sm text-ink-soft">
+        Buy back in for {formatMoney(startingStack)}, or cash out and leave the table.
       </p>
       <div className="space-y-3">
-        <button
-          data-testid="rebuy-confirm"
-          onClick={onRebuy}
-          className="w-full bg-accent-primary text-white font-bold py-4 px-4 rounded-xl transition-all hover:opacity-90 active:scale-95"
-        >
-          Buy In for ${startingStack.toLocaleString()}
-        </button>
-        <button
-          data-testid="rebuy-decline"
-          onClick={onCashOut}
-          className="w-full border-2 border-surface-card text-text-primary font-bold py-3 px-4 rounded-xl transition-all hover:bg-surface-card active:scale-95"
-        >
+        <RetroButton block size="lg" tone="teal" data-testid="rebuy-confirm" onClick={onRebuy}>
+          Buy In for {formatMoney(startingStack)}
+        </RetroButton>
+        <RetroButton block size="md" tone="cream" data-testid="rebuy-decline" onClick={onCashOut}>
           Cash Out
-        </button>
+        </RetroButton>
       </div>
     </DialogShell>
   );

@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
+import { prefersReducedMotion } from '../lib/motion';
 
 export function useAnimatedNumber(target: number, duration = 400): number {
   const [displayed, setDisplayed] = useState(target);
@@ -12,6 +13,13 @@ export function useAnimatedNumber(target: number, duration = 400): number {
 
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
+    }
+
+    if (prefersReducedMotion()) {
+      prevRef.current = target;
+      rafRef.current = null;
+      setDisplayed(target);
+      return;
     }
 
     startTimeRef.current = null;
