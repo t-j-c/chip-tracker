@@ -4,7 +4,9 @@ import { renderHook, act } from '@testing-library/react';
 const getRoom = vi.hoisted(() => vi.fn());
 vi.mock('../lib/api', () => ({ getRoom }));
 
-import { useRoomEvents, PING_INTERVAL_MS, RESYNC_INTERVAL_MS } from './useRoomEvents';
+import {
+  useRoomEvents, HEARTBEAT_INTERVAL_MS, PONG_TIMEOUT_MS, CONNECT_TIMEOUT_MS, RESYNC_INTERVAL_MS,
+} from './useRoomEvents';
 import { useGameStore } from '../stores/gameStore';
 
 class MockWebSocket {
@@ -177,17 +179,116 @@ describe('useRoomEvents', () => {
     }
   });
 
-  it('sends a ping every 5 minutes while open', async () => {
+  it('reconnects if a heartbeat receives no response', async () => {
     renderHook(() => useRoomEvents('ABC123', 'p1'));
     await act(async () => { last().open(); });
     const ws = last();
-    expect(ws.sent).toHaveLength(0);
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(PING_INTERVAL_MS); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS); });
     expect(ws.sent).toEqual([JSON.stringify({ action: 'ping' })]);
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(PING_INTERVAL_MS); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(PONG_TIMEOUT_MS + 1); });
+    expect(ws.readyState).toBe(MockWebSocket.CLOSED);
+    expect(useGameStore.getState().isConnected).toBe(false);
+    expect(MockWebSocket.instances).toHaveLength(2);
+  });
+
+  it('accepts a pong or room event as liveness without applying the pong as a snapshot', async () => {
+    renderHook(() => useRoomEvents('ABC123', 'p1'));
+    await act(async () => { last().open(); });
+    await flush();
+    const ws = last();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS); });
+    act(() => ws.push({ type: 'pong', revision: 0 }));
+    expect(useGameStore.getState().lastRevision).toBe(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS); });
     expect(ws.sent).toHaveLength(2);
+    act(() => ws.push({ type: 'playerJoined', roomCode: 'ABC123', ...snapshot(2, 'New') }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(PONG_TIMEOUT_MS + 1); });
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+    expect(useGameStore.getState().lastRevision).toBe(2);
+    expect(useGameStore.getState().lobbyPlayers[0].name).toBe('New');
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it('probes a zombie on resume, reconnects once, and resyncs on the new connection', async () => {
+    renderHook(() => useRoomEvents('ABC123', 'p1'));
+    await act(async () => { last().open(); });
+    await flush();
+    const ws = last();
+    const oldClose = ws.onclose;
+    getRoom.mockResolvedValue(snapshot(2, 'Fresh'));
+    getRoom.mockClear();
+
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+    expect(getRoom).toHaveBeenCalledTimes(1);
+    expect(ws.sent).toEqual([JSON.stringify({ action: 'ping' })]);
+    await act(async () => { window.dispatchEvent(new Event('online')); });
+    expect(ws.sent).toHaveLength(1);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(PONG_TIMEOUT_MS + 1); });
+    expect(MockWebSocket.instances).toHaveLength(2);
+    act(() => oldClose?.());
+    await flush();
+    expect(MockWebSocket.instances).toHaveLength(2);
+
+    const callsBeforeOpen = getRoom.mock.calls.length;
+    await act(async () => { last().open(); });
+    expect(getRoom).toHaveBeenCalledTimes(callsBeforeOpen + 1);
+    expect(useGameStore.getState().lobbyPlayers[0].name).toBe('Fresh');
+  });
+
+  it('replaces a connection stuck in CONNECTING', async () => {
+    renderHook(() => useRoomEvents('ABC123', 'p1'));
+    const ws = last();
+    await act(async () => { await vi.advanceTimersByTimeAsync(CONNECT_TIMEOUT_MS + 1); });
+    expect(ws.readyState).toBe(MockWebSocket.CLOSED);
+    expect(MockWebSocket.instances).toHaveLength(2);
+  });
+
+  it('replaces an expired connecting socket immediately on resume after timers were frozen', async () => {
+    renderHook(() => useRoomEvents('ABC123', 'p1'));
+    const ws = last();
+    vi.setSystemTime(Date.now() + CONNECT_TIMEOUT_MS);
+    act(() => window.dispatchEvent(new Event('pageshow')));
+    expect(ws.readyState).toBe(MockWebSocket.CLOSED);
+    expect(MockWebSocket.instances).toHaveLength(2);
+  });
+
+  it.each(['pageshow', 'online'])('resyncs and probes on %s', async (event) => {
+    renderHook(() => useRoomEvents('ABC123', 'p1'));
+    await act(async () => { last().open(); });
+    await flush();
+    getRoom.mockClear();
+
+    await act(async () => { window.dispatchEvent(new Event(event)); });
+    expect(getRoom).toHaveBeenCalledTimes(1);
+    expect(last().sent).toEqual([JSON.stringify({ action: 'ping' })]);
+  });
+
+  it('does not time out a heartbeat while the page is hidden', async () => {
+    renderHook(() => useRoomEvents('ABC123', 'p1'));
+    await act(async () => { last().open(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS); });
+    const ws = last();
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    try {
+      act(() => document.dispatchEvent(new Event('visibilitychange')));
+      await act(async () => { await vi.advanceTimersByTimeAsync(PONG_TIMEOUT_MS + 1); });
+      expect(MockWebSocket.instances).toHaveLength(1);
+      expect(ws.readyState).toBe(MockWebSocket.OPEN);
+
+      // Still sends keep-alives while hidden, but never times them out.
+      await act(async () => { await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS + PONG_TIMEOUT_MS); });
+      expect(ws.sent).toHaveLength(2);
+      expect(MockWebSocket.instances).toHaveLength(1);
+    } finally {
+      delete (document as unknown as Record<string, unknown>).visibilityState;
+    }
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+    expect(ws.sent).toHaveLength(3);
   });
 
   it('reconnects with backoff, never gives up, and calls onRejoined after the resync', async () => {

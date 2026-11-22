@@ -8,12 +8,14 @@ Route 53 (deal-me-in.com) ─► CloudFront (ACM cert, PriceClass_100)
                               ├─ /api/*  → API Gateway HTTP API ($default, throttled) → Lambda "Api" (ASP.NET Core)
                               └─ /ws     → API Gateway WebSocket API (stage "ws", throttled)
                                              ├─ $connect → Lambda "WsConnect"
-                                             └─ $default → MOCK (keep-alive ping)
+                                             └─ $default → MOCK (heartbeat ping/pong)
 DynamoDB: Rooms (RETAIN, TTL) + Connections (TTL)
 Ops: CloudWatch alarms → SNS email, $5/mo AWS Budget, 14-day logs, tag app=chip-tracker
 ```
 
 At family scale this costs about **$0.55/month**, almost all of it the Route 53 hosted zone. There is no VPC, NAT, load balancer, ECS or ECR.
+
+Visible clients send a heartbeat every 25 seconds and probe immediately on resume. If no message arrives after a probe, the client reconnects and resyncs; a 30-second visible-page resync remains as a safety net. The MOCK route and local WebSocket server share the [pong payload](../src/backend/src/ChipTracker.Presentation/Realtime/HeartbeatPong.json). Heartbeat traffic adds WebSocket message charges depending on active client time.
 
 ## Layout
 

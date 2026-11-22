@@ -102,6 +102,21 @@ public class RealtimeEndpointsTests : IClassFixture<RealtimeEndpointsTests.Facto
     }
 
     [Fact]
+    public async Task Ping_ReturnsPongOverWebSocket()
+    {
+        var (code, _, _) = await StartedRoom();
+        using var socket = await _factory.Server.CreateWebSocketClient()
+            .ConnectAsync(new Uri($"ws://localhost/ws?room={code}"), CancellationToken.None);
+
+        var ping = Encoding.UTF8.GetBytes("{\"action\":\"ping\"}");
+        await socket.SendAsync(ping, WebSocketMessageType.Text, true, CancellationToken.None);
+
+        var response = await Receive(socket);
+        response.GetProperty("type").GetString().Should().Be("pong");
+        response.GetProperty("revision").GetInt64().Should().Be(0);
+    }
+
+    [Fact]
     public async Task Action_Returns200WithSnapshot_AndPushesNextRevisionOverWebSocket()
     {
         var (code, _, _) = await StartedRoom();

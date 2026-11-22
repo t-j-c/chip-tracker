@@ -64,6 +64,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   })),
   setRoomSettings: (settings) => set({ roomSettings: settings }),
   applySnapshot: ({ revision, roomInfo, gameState }) => {
+    if (typeof revision !== 'number' || !Number.isFinite(revision)) {
+      console.error('Ignoring room snapshot with invalid revision:', revision);
+      return false;
+    }
     if (revision <= get().lastRevision) return false;
     set((state) => ({
       lastRevision: revision,

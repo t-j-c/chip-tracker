@@ -15,6 +15,8 @@ import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Construct } from 'constructs';
 
 export interface ThrottleConfig {
@@ -136,9 +138,11 @@ export class ChipTrackerStack extends cdk.Stack {
     wsApi.addRoute('$connect', {
       integration: new integrations.WebSocketLambdaIntegration('ConnectIntegration', wsConnectFn),
     });
-    // Keep-alive: the client sends {"action":"ping"} and the MOCK integration swallows it. It needs a
-    // request template AND an integration response, otherwise every ping gets "Internal server error".
+    // Revision zero makes the pong harmless to older clients that treat every frame as a snapshot.
+    // Reply without invoking a Lambda, using the same payload as the local server.
     // Built from L1 constructs because the L2 mock integration doesn't expose its integration ID.
+    const pong = fs.readFileSync(path.resolve(__dirname,
+      '../../src/backend/src/ChipTracker.Presentation/Realtime/HeartbeatPong.json'), 'utf8').trim();
     const pingIntegration = new apigwv2.CfnIntegration(this, 'PingIntegration', {
       apiId: wsApi.apiId,
       integrationType: 'MOCK',
@@ -149,11 +153,19 @@ export class ChipTrackerStack extends cdk.Stack {
       apiId: wsApi.apiId,
       integrationId: pingIntegration.ref,
       integrationResponseKey: '$default',
+      templateSelectionExpression: '\\$default',
+      responseTemplates: { $default: pong },
     });
-    new apigwv2.CfnRoute(this, 'PingRoute', {
+    const pingRoute = new apigwv2.CfnRoute(this, 'PingRoute', {
       apiId: wsApi.apiId,
       routeKey: '$default',
+      routeResponseSelectionExpression: '$default',
       target: `integrations/${pingIntegration.ref}`,
+    });
+    new apigwv2.CfnRouteResponse(this, 'PingRouteResponse', {
+      apiId: wsApi.apiId,
+      routeId: pingRoute.ref,
+      routeResponseKey: '$default',
     });
     new apigwv2.WebSocketStage(this, 'WsStage', {
       webSocketApi: wsApi,

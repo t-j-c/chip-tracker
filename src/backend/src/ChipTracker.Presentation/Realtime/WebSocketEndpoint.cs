@@ -1,4 +1,5 @@
 using System.Net.WebSockets;
+using System.Text;
 using System.Text.RegularExpressions;
 using ChipTracker.Application.Interfaces;
 
@@ -6,6 +7,17 @@ namespace ChipTracker.Presentation.Realtime;
 
 public static partial class WebSocketEndpoint
 {
+    private static readonly byte[] Pong = LoadPong();
+
+    private static byte[] LoadPong()
+    {
+        using var stream = typeof(WebSocketEndpoint).Assembly.GetManifestResourceStream(
+            "ChipTracker.Presentation.Realtime.HeartbeatPong.json")
+            ?? throw new InvalidOperationException("The WebSocket heartbeat response is missing.");
+        using var reader = new StreamReader(stream);
+        return Encoding.UTF8.GetBytes(reader.ReadToEnd().Trim());
+    }
+
     [GeneratedRegex("^[A-Z0-9]{6}$")]
     private static partial Regex RoomCodePattern();
 
@@ -48,13 +60,14 @@ public static partial class WebSocketEndpoint
 
         try
         {
-            // Clients only ever send keep-alive pings; read and discard until the socket closes.
             var buffer = new byte[256];
             while (socket.State == WebSocketState.Open)
             {
                 var result = await socket.ReceiveAsync(buffer, context.RequestAborted);
                 if (result.MessageType == WebSocketMessageType.Close)
                     break;
+                if (result.MessageType == WebSocketMessageType.Text && result.EndOfMessage)
+                    await roomSocket.SendAsync(Pong, context.RequestAborted);
             }
         }
         catch (Exception ex) when (ex is WebSocketException or OperationCanceledException)
