@@ -1,5 +1,7 @@
 # UI/UX Upgrade Requirements — Chip Tracker
 
+> **Superseded** by the retro-cartoon overhaul in [../ui-overhaul-retro-cartoon/README.md](../ui-overhaul-retro-cartoon/README.md). Kept for history.
+
 **Author:** Senior UI/UX Designer  
 **Date:** 2025-07-25  
 **Status:** Draft  
