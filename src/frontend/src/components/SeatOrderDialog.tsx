@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { DialogShell } from './DialogShell';
 import { moveSeat } from '../lib/seating';
-import { cn, getAvatarColor } from '@/lib/utils';
 import type { Player } from '../types/game';
+import Avatar from './ui/Avatar';
+import DealerChip from './ui/DealerChip';
+import RetroButton from './ui/RetroButton';
 
 interface SeatMoveButtonsProps {
   name: string;
@@ -13,13 +15,12 @@ interface SeatMoveButtonsProps {
   onMove: (delta: -1 | 1) => void;
 }
 
-const MOVE_BTN =
-  'p-1.5 rounded-md text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors disabled:opacity-30 disabled:cursor-not-allowed';
+const MOVE_BTN = 'retro-btn h-9 w-9 bg-card text-ink shadow-hard-sm';
 
 /** Up/down controls for moving one player in the seating order. */
 export function SeatMoveButtons({ name, index, count, disabled, onMove }: SeatMoveButtonsProps) {
   return (
-    <div className="flex items-center">
+    <div className="flex items-center gap-1.5">
       <button
         type="button"
         onClick={() => onMove(-1)}
@@ -27,7 +28,7 @@ export function SeatMoveButtons({ name, index, count, disabled, onMove }: SeatMo
         aria-label={`Move ${name} up`}
         className={MOVE_BTN}
       >
-        <ChevronUp size={18} />
+        <ChevronUp aria-hidden="true" size={18} />
       </button>
       <button
         type="button"
@@ -36,16 +37,14 @@ export function SeatMoveButtons({ name, index, count, disabled, onMove }: SeatMo
         aria-label={`Move ${name} down`}
         className={MOVE_BTN}
       >
-        <ChevronDown size={18} />
+        <ChevronDown aria-hidden="true" size={18} />
       </button>
     </div>
   );
 }
 
 interface SeatOrderDialogProps {
-  /** Players in the current table order. */
   players: Player[];
-  /** Order already queued for the next hand, if any. */
   pendingOrder?: string[] | null;
   onSave: (orderedPlayerIds: string[]) => void;
   onClose: () => void;
@@ -58,6 +57,7 @@ export default function SeatOrderDialog({ players, pendingOrder, onSave, onClose
   );
   const [order, setOrder] = useState<string[]>(initial);
   const byId = new Map(players.map(p => [p.playerId, p]));
+  const seatIndexOf = (id: string) => players.findIndex(p => p.playerId === id);
   const changed = order.some((id, i) => id !== initial[i]);
 
   return (
@@ -67,11 +67,11 @@ export default function SeatOrderDialog({ players, pendingOrder, onSave, onClose
       onOpenChange={(open) => !open && onClose()}
       ariaDescribedBy="seat-order-description"
     >
-      <p id="seat-order-description" className="text-text-secondary text-sm mb-4">
+      <p id="seat-order-description" className="mb-4 text-sm text-ink-soft">
         List players clockwise around the table. The new order starts with the next hand, and the
         dealer button stays with the same player.
       </p>
-      <ol className="space-y-2 mb-5">
+      <ol className="mb-5 space-y-2">
         {order.map((id, idx) => {
           const player = byId.get(id);
           if (!player) return null;
@@ -79,26 +79,14 @@ export default function SeatOrderDialog({ players, pendingOrder, onSave, onClose
             <li
               key={id}
               data-testid={`seat-row-${id}`}
-              className="flex items-center gap-3 pl-3 pr-1 py-2 bg-surface-card rounded-xl"
+              className="flex items-center gap-2.5 rounded-xl border-[3px] border-ink bg-paper py-1.5 pl-2 pr-1.5 shadow-hard-sm"
             >
-              <span className="w-4 text-xs text-text-secondary font-mono">{idx + 1}</span>
-              <div
-                className={cn(
-                  'w-8 h-8 rounded-full flex items-center justify-center font-bold text-white text-sm flex-shrink-0',
-                  getAvatarColor(idx),
-                )}
-              >
-                {player.name.charAt(0).toUpperCase()}
-              </div>
-              <span className="flex-1 min-w-0 font-medium text-text-primary truncate">{player.name}</span>
-              {player.isDealer && (
-                <span
-                  className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold bg-accent-warning text-text-on-light"
-                  aria-label="Dealer"
-                >
-                  D
-                </span>
-              )}
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-ink font-display text-xs text-paper">
+                {idx + 1}
+              </span>
+              <Avatar name={player.name} colorIndex={seatIndexOf(id)} size="sm" />
+              <span className="min-w-0 flex-1 truncate font-display text-ink">{player.name}</span>
+              {player.isDealer && <DealerChip variant="puck" />}
               <SeatMoveButtons
                 name={player.name}
                 index={idx}
@@ -110,22 +98,12 @@ export default function SeatOrderDialog({ players, pendingOrder, onSave, onClose
         })}
       </ol>
       <div className="grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={onClose}
-          className="border-2 border-surface-card text-text-primary font-bold py-3 rounded-xl transition-all hover:bg-surface-card active:scale-95"
-        >
+        <RetroButton tone="cream" onClick={onClose}>
           Cancel
-        </button>
-        <button
-          type="button"
-          data-testid="seat-order-save"
-          onClick={() => onSave(order)}
-          disabled={!changed}
-          className="bg-accent-primary text-white font-bold py-3 rounded-xl transition-all hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
+        </RetroButton>
+        <RetroButton tone="teal" data-testid="seat-order-save" onClick={() => onSave(order)} disabled={!changed}>
           Save
-        </button>
+        </RetroButton>
       </div>
     </DialogShell>
   );
